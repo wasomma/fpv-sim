@@ -42,7 +42,7 @@
   #mapwrap{flex:1 1 auto; position:relative; min-width:0; background:#060a0c}
   #map{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair}
   aside{
-    flex:0 0 344px; display:flex; flex-direction:column; min-height:0;
+    flex:0 0 372px; display:flex; flex-direction:column; min-height:0;
     border-left:1px solid var(--border); background:var(--panel2);
   }
   aside section{display:flex; flex-direction:column; min-height:0}
@@ -70,34 +70,39 @@
   #log .chip.O{color:var(--opfor); border-color:rgba(255,93,93,.45)}
   #log .chip.S{color:var(--dim); border-color:var(--border)}
   #log .tx{flex:1}
-  footer{
-    flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-    padding:7px 12px; background:var(--panel); border-top:1px solid var(--border);
-  }
-  footer .grp{display:flex; align-items:center; gap:6px}
-  footer .sep{width:1px; align-self:stretch; background:var(--border); margin:0 4px}
   button{
-    font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--text);
+    font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--text);
     background:#151d22; border:1px solid var(--border); border-radius:3px;
-    padding:5px 12px; cursor:pointer; text-transform:uppercase;
+    padding:10px 14px; cursor:pointer; text-transform:uppercase;
   }
   button:hover{border-color:#33454f; color:#e8f2f5}
   button.active{border-color:var(--rf); color:var(--rf)}
   button:focus-visible{outline:1px solid var(--rf); outline-offset:1px}
-  footer label{
-    display:flex; align-items:center; gap:5px; font-size:10px; letter-spacing:.1em;
+  #ctrlsec{flex:0 0 auto; border-bottom:1px solid var(--border)}
+  #ctrlBody{padding:12px; display:flex; flex-direction:column; gap:10px}
+  .ctl-row{display:flex; gap:8px}
+  .ctl-row button{flex:1 1 0; min-width:0}
+  .ctl-lbl{
+    font-size:10px; letter-spacing:.2em; color:var(--dim);
+    text-transform:uppercase; user-select:none; margin-bottom:-4px;
+  }
+  #ctrlBody select{
+    font-family:var(--mono); font-size:12px; letter-spacing:.08em; color:var(--text);
+    background:#151d22; border:1px solid var(--border); border-radius:3px;
+    padding:9px 8px; cursor:pointer; text-transform:uppercase; width:100%;
+  }
+  #ctrlBody select:hover{border-color:#33454f; color:#e8f2f5}
+  #ctrlBody select:focus-visible{outline:1px solid var(--rf); outline-offset:1px}
+  .toggles{display:grid; grid-template-columns:1fr 1fr; gap:9px 12px; padding:2px 0}
+  .toggles label{
+    display:flex; align-items:center; gap:7px; font-size:12px; letter-spacing:.08em;
     color:var(--dim); cursor:pointer; text-transform:uppercase; user-select:none;
   }
-  footer label:hover{color:var(--text)}
-  footer input[type=checkbox]{accent-color:var(--rf); width:12px; height:12px; cursor:pointer}
-  footer .seed{font-size:10px; color:var(--dim); letter-spacing:.08em}
-  footer select{
-    font-family:var(--mono); font-size:10px; letter-spacing:.08em; color:var(--text);
-    background:#151d22; border:1px solid var(--border); border-radius:3px;
-    padding:5px 6px; cursor:pointer; text-transform:uppercase; max-width:200px;
-  }
-  footer select:hover{border-color:#33454f; color:#e8f2f5}
-  footer select:focus-visible{outline:1px solid var(--rf); outline-offset:1px}
+  .toggles label:hover{color:var(--text)}
+  .toggles input[type=checkbox]{accent-color:var(--rf); width:15px; height:15px; cursor:pointer; flex:none}
+  .seedrow{align-items:center}
+  .seedrow .seed{flex:1 1 auto; font-size:11px; color:var(--dim); letter-spacing:.08em}
+  .seedrow button{flex:0 0 auto}
   #endcard{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     background:rgba(6,10,12,.72); backdrop-filter:blur(2px); z-index:5;
@@ -111,12 +116,14 @@
   #endcard .card p{font-size:12px; color:var(--dim); letter-spacing:.08em; margin-bottom:18px}
   #endcard .card .btns{display:flex; gap:10px; justify-content:center}
   @media (max-width: 920px){
-    aside{flex:0 0 260px}
+    aside{flex:0 0 300px}
   }
   @media (max-width: 700px){
     main{flex-direction:column}
     #mapwrap{flex:1 1 55%}
-    aside{flex:1 1 45%; border-left:none; border-top:1px solid var(--border)}
+    aside{flex:1 1 45%; border-left:none; border-top:1px solid var(--border); overflow-y:auto}
+    #ctrlsec,#detail,#logsec{flex:0 0 auto}
+    #log{max-height:200px}
   }
   @media (prefers-reduced-motion: reduce){
     #endcard{backdrop-filter:none}
@@ -148,6 +155,42 @@
       </div>
     </div>
     <aside>
+      <section id="ctrlsec">
+        <h3>Controls</h3>
+        <div id="ctrlBody">
+          <div class="ctl-row">
+            <button id="btnPlay">Play</button>
+            <button id="btnReset">Reset</button>
+          </div>
+          <div class="ctl-row" id="speedGrp">
+            <button data-spd="1">1x</button>
+            <button data-spd="2">2x</button>
+            <button data-spd="4" class="active">4x</button>
+            <button data-spd="8">8x</button>
+          </div>
+          <div class="ctl-lbl"><label for="scenario" style="cursor:pointer">Scenario</label></div>
+          <select id="scenario" title="Featured engagements">
+            <option value="20260719">Standard Engagement (BLUFOR)</option>
+            <option value="66">Discipline Wins, Fast (BLUFOR)</option>
+            <option value="57">Deliberate Fix (BLUFOR)</option>
+            <option value="41">OPFOR Prevails</option>
+            <option value="59">Close Race (OPFOR)</option>
+            <option value="custom" hidden>Custom Seed</option>
+          </select>
+          <div class="ctl-lbl">Map Layers</div>
+          <div class="toggles">
+            <label><input type="checkbox" id="tglRF"> RF Coverage</label>
+            <label><input type="checkbox" id="tglLOB" checked> LOBs</label>
+            <label><input type="checkbox" id="tglELL" checked> Ellipses</label>
+            <label><input type="checkbox" id="tglPATH" checked> Flight Paths</label>
+            <label><input type="checkbox" id="tglCAN" checked> Canopy</label>
+          </div>
+          <div class="ctl-row seedrow">
+            <span class="seed">SEED <span id="seedVal"></span></span>
+            <button id="btnNewSeed">Random</button>
+          </div>
+        </div>
+      </section>
       <section id="detail">
         <h3>Unit Detail</h3>
         <div id="detailBody"><div class="none">SELECT A UNIT ON THE MAP</div></div>
@@ -158,43 +201,6 @@
       </section>
     </aside>
   </main>
-  <footer>
-    <div class="grp">
-      <button id="btnPlay">Play</button>
-      <button id="btnReset">Reset</button>
-    </div>
-    <div class="grp" id="speedGrp">
-      <button data-spd="1">1x</button>
-      <button data-spd="2">2x</button>
-      <button data-spd="4" class="active">4x</button>
-      <button data-spd="8">8x</button>
-    </div>
-    <div class="sep"></div>
-    <div class="grp">
-      <label><input type="checkbox" id="tglRF"> RF Coverage</label>
-      <label><input type="checkbox" id="tglLOB" checked> LOBs</label>
-      <label><input type="checkbox" id="tglELL" checked> Ellipses</label>
-      <label><input type="checkbox" id="tglPATH" checked> Flight Paths</label>
-      <label><input type="checkbox" id="tglCAN" checked> Canopy</label>
-    </div>
-    <div class="sep"></div>
-    <div class="grp">
-      <label for="scenario" style="cursor:pointer">SCENARIO</label>
-      <select id="scenario" title="Featured engagements">
-        <option value="20260719">Standard Engagement (BLUFOR)</option>
-        <option value="66">Discipline Wins, Fast (BLUFOR)</option>
-        <option value="57">Deliberate Fix (BLUFOR)</option>
-        <option value="41">OPFOR Prevails</option>
-        <option value="59">Close Race (OPFOR)</option>
-        <option value="custom" hidden>Custom Seed</option>
-      </select>
-    </div>
-    <div class="sep"></div>
-    <div class="grp">
-      <span class="seed">SEED <span id="seedVal"></span></span>
-      <button id="btnNewSeed">Random</button>
-    </div>
-  </footer>
   <div class="banner">Unclassified // Notional Demonstration</div>
 
 <script>
