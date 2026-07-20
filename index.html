@@ -1009,8 +1009,12 @@ window.addEventListener("resize", resizeCanvas);
 function fitView(){
   const w = cvs.width / (window.devicePixelRatio || 1);
   const h = cvs.height / (window.devicePixelRatio || 1);
-  const m = 8;
-  view.scale = Math.min(w - m * 2, h - m * 2) / world.size;
+  // Cover fit: fill the pane and crop the world's empty top/bottom margins
+  // on wide panes, rather than letterboxing the square world. MIN_VIS_M caps
+  // the vertical crop so the emplacement band (GCS, DF nodes, NAIs, all
+  // within roughly 1000-3000 m northing) always stays in view.
+  const MIN_VIS_M = 2800;
+  view.scale = Math.min(Math.max(w / world.size, h / world.size), h / MIN_VIS_M);
   view.ox = (w - world.size * view.scale) / 2;
   view.oy = (h - world.size * view.scale) / 2;
 }
@@ -1049,6 +1053,11 @@ function draw(){
 
 function drawGrid(){
   ctx.save();
+  const h = cvs.height / (window.devicePixelRatio || 1);
+  // Pin edge labels to the visible pane; the world's own edges may be
+  // cropped offscreen by the cover fit.
+  const labelY = Math.min(W2S(0, 0).y, h) - 4;
+  const labelX = Math.max(W2S(0, 0).x, 0) + 3;
   ctx.strokeStyle = "rgba(200,220,230,0.06)"; ctx.lineWidth = 1;
   ctx.fillStyle = "rgba(160,185,195,0.30)"; ctx.font = "9px " + getComputedStyle(document.body).fontFamily;
   for (let g = 0; g <= world.size; g += 500){
@@ -1057,8 +1066,8 @@ function drawGrid(){
     const c = W2S(0, g), d = W2S(world.size, g);
     ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke();
     if (g < world.size){
-      ctx.fillText(String(g / 100).padStart(2, "0"), a.x + 3, W2S(0, 0).y - 4);
-      ctx.fillText(String(g / 100).padStart(2, "0"), W2S(0, 0).x + 3, c.y - 3);
+      ctx.fillText(String(g / 100).padStart(2, "0"), a.x + 3, labelY);
+      ctx.fillText(String(g / 100).padStart(2, "0"), labelX, c.y - 3);
     }
   }
   ctx.restore();
@@ -1310,17 +1319,22 @@ function drawExplosions(){
 
 function drawMapFurniture(w, h){
   const fam = getComputedStyle(document.body).fontFamily;
+  // Anchor furniture to the visible pane, not the world edges: the cover
+  // fit can push the world's top/bottom (or left/right) offscreen.
+  const topY = Math.max(view.oy, 0);
+  const botY = Math.min(view.oy + world.size * view.scale, h);
+  const leftX = Math.max(view.ox, 0);
   ctx.save();
   // North arrow.
   ctx.strokeStyle = "rgba(200,220,230,0.5)"; ctx.fillStyle = "rgba(200,220,230,0.6)";
   ctx.lineWidth = 1;
-  const nx = view.ox + 16, ny = view.oy + 26;
+  const nx = leftX + 16, ny = topY + 26;
   ctx.beginPath(); ctx.moveTo(nx, ny); ctx.lineTo(nx, ny - 16); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(nx, ny - 20); ctx.lineTo(nx - 4, ny - 12); ctx.lineTo(nx + 4, ny - 12); ctx.closePath(); ctx.fill();
   ctx.font = "9px " + fam; ctx.fillText("N", nx - 3, ny + 11);
   // Scale bar: 500 m.
   const bl = 500 * view.scale;
-  const bx = view.ox + 14, by = view.oy + world.size * view.scale - 14;
+  const bx = leftX + 14, by = botY - 14;
   ctx.strokeStyle = "rgba(200,220,230,0.55)";
   ctx.beginPath();
   ctx.moveTo(bx, by); ctx.lineTo(bx + bl, by);
@@ -1332,7 +1346,7 @@ function drawMapFurniture(w, h){
   // AO label.
   ctx.fillStyle = "rgba(200,220,230,0.28)";
   ctx.font = "10px " + fam;
-  ctx.fillText("AO KATANA (NOTIONAL) // GRID 500M", bx, view.oy + 14);
+  ctx.fillText("AO KATANA (NOTIONAL) // GRID 500M", bx, topY + 14);
   ctx.restore();
 }
 

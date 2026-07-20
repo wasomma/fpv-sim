@@ -195,8 +195,11 @@ speed and climb; movement is simple dead reckoning per 0.1 s tick.
   readout, unit symbols, explosion rings, map furniture (north arrow, 500 m
   scale bar, AO label), selection ring.
 - World coordinates are meters with north up; `W2S()` flips Y for screen
-  space. Canvas is DPI-aware (`devicePixelRatio` transform) and the view
-  letterboxes the square world into the available pane.
+  space. Canvas is DPI-aware (`devicePixelRatio` transform). The view uses a
+  **cover fit**: it fills the pane and crops the square world's empty
+  top/bottom margins on wide panes, with a clamp (`MIN_VIS_M`) guaranteeing
+  the central emplacement band always stays visible. Map furniture and grid
+  labels pin to the visible pane rather than the world edges.
 - Hit testing for unit selection is a simple nearest-center search over
   screen-space hit circles rebuilt each frame.
 
