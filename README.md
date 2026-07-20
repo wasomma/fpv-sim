@@ -90,7 +90,11 @@ for a perfect fix runs out of endurance.
 See **[DESIGN_NOTES.md](DESIGN_NOTES.md)** for the full technical write-up:
 the DF measurement model, the least-squares fix and covariance inflation, the
 terrain and RF propagation models, the drone state machine, and the tuning
-rationale behind every number in `CONFIG`.
+rationale behind every number in `CONFIG`. See
+**[DEVELOPMENT_HISTORY.md](DEVELOPMENT_HISTORY.md)** for how the project was
+made: the requirements baseline, the bugs found and fixed along the way
+(including the overconfident-estimator fix), and why the featured-scenario
+approach was chosen over forcing decisive outcomes.
 
 ## Tuning
 
@@ -103,10 +107,10 @@ the same seed, and compare outcomes.
 ## Provenance and repo notes
 
 - The demo was authored with AI assistance (Anthropic's Claude) as a
-  single-file deliverable. The original authoring conversation lived in a
-  separate chat environment and is not preserved in this repository; the
-  documentation here (README and design notes) was reconstructed from the
-  code itself, which is extensively commented.
+  single-file deliverable. The design notes were reconstructed from the code
+  itself, which is extensively commented; the development history was written
+  from the original authoring conversation and reconciled against the shipped
+  code.
 - `index.html` is the entire application. It is named `index.html` so GitHub
   Pages serves it at the repository root URL.
 - No build, no dependencies, no network calls. It runs from a `file://` URL.
