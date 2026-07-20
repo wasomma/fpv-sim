@@ -184,6 +184,7 @@
             <label><input type="checkbox" id="tglELL" checked> Ellipses</label>
             <label><input type="checkbox" id="tglPATH" checked> Flight Paths</label>
             <label><input type="checkbox" id="tglCAN" checked> Canopy</label>
+            <label><input type="checkbox" id="tglHUD" checked> Status HUD</label>
           </div>
           <div class="ctl-row seedrow">
             <span class="seed">SEED <span id="seedVal"></span></span>
@@ -1048,6 +1049,7 @@ function draw(){
   drawUnits();
   drawExplosions();
   drawMapFurniture(w, h);
+  if (document.getElementById("tglHUD").checked) drawHUD(w, h);
   drawSelection();
 }
 
@@ -1348,6 +1350,64 @@ function drawMapFurniture(w, h){
   ctx.font = "10px " + fam;
   ctx.fillText("AO KATANA (NOTIONAL) // GRID 500M", bx, topY + 14);
   ctx.restore();
+}
+
+/* ------- Team status HUD: the race-to-fix, at a glance ---------------- */
+// Semi-transparent cards in the upper map corners (BLUFOR left, OPFOR
+// right) showing each side's collection progress, fix quality, and drone
+// status. The corners sit over terrain the cover fit keeps clear of the
+// NAIs and emplacement band at typical window sizes.
+function drawHUD(w, h){
+  const fam = getComputedStyle(document.body).fontFamily;
+  const topY = Math.max(view.oy, 0);
+  const leftX = Math.max(view.ox, 0);
+  const rightX = Math.min(view.ox + world.size * view.scale, w);
+  const cw = 212, ch = 92, pad = 10, y0 = topY + 34;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side], d = T.drone;
+    const x0 = side === "BLUFOR" ? leftX + 12 : rightX - cw - 12;
+    ctx.save();
+    ctx.fillStyle = "rgba(13,18,22,0.82)";
+    ctx.strokeStyle = hexA(T.color, 0.55); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x0, y0, cw, ch, 3); ctx.fill(); ctx.stroke();
+    ctx.font = "10px " + fam;
+    // Header: side + EMCON posture.
+    ctx.fillStyle = T.color;
+    ctx.fillText(side, x0 + pad, y0 + 16);
+    ctx.textAlign = "right";
+    ctx.fillStyle = T.emcon.emconLabel === "CONTINUOUS" ? hexA(CONFIG.COLORS.RF, 0.9) : "rgba(109,127,134,1)";
+    ctx.fillText("EMCON " + T.emcon.emconLabel, x0 + cw - pad, y0 + 16);
+    ctx.textAlign = "left";
+    ctx.strokeStyle = hexA(T.color, 0.25);
+    ctx.beginPath(); ctx.moveTo(x0 + pad, y0 + 23); ctx.lineTo(x0 + cw - pad, y0 + 23); ctx.stroke();
+    const row = (y, k, v, vColor) => {
+      ctx.fillStyle = "rgba(109,127,134,1)"; ctx.fillText(k, x0 + pad, y);
+      ctx.textAlign = "right";
+      ctx.fillStyle = vColor || "rgba(196,208,212,1)";
+      ctx.fillText(v, x0 + cw - pad, y);
+      ctx.textAlign = "left";
+    };
+    // Drone status + battery.
+    const dState = !d.launched ? "PREFLIGHT" : d.downed ? "DOWN" : d.state;
+    const hot = d.state === "COMMIT" || d.state === "TERMINAL";
+    row(y0 + 40, "sUAS-1  " + dState,
+      d.launched && !d.downed ? "BATT " + Math.round(d.batt) + "%" : "--",
+      hot ? hexA(CONFIG.COLORS.RF, 0.95) : (d.batt < 30 && d.launched ? hexA(CONFIG.COLORS.OPFOR, 0.95) : null));
+    // Collection: LOBs held and fix CEP against the enemy GCS. Early
+    // solutions carry the jitter sentinel; hide CEP until it is meaningful
+    // (same 1600 m threshold the ellipse layer uses).
+    row(y0 + 58, "LOBS " + T.meas.length,
+      T.est.solved && T.est.cep < 1600 ? "CEP " + Math.round(T.est.cep) + "M" : "NO FIX");
+    // Bottom line: engagement status.
+    let st = "SEARCHING", sc = null;
+    if (T.gcs.destroyed){ st = "GCS DESTROYED"; sc = hexA(CONFIG.COLORS.OPFOR, 0.95); }
+    else if (T.flags.committed){ st = "ATTACK COMMITTED"; sc = hexA(CONFIG.COLORS.RF, 0.95); }
+    else if (T.flags.fixed) st = "FIX HELD";
+    else if (T.flags.crossFix) st = "CROSS-FIX FORMING";
+    else if (T.flags.firstLOB) st = "COLLECTING";
+    row(y0 + 76, "STATUS", st, sc);
+    ctx.restore();
+  }
 }
 
 function drawSelection(){

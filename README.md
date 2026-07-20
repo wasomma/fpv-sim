@@ -42,6 +42,7 @@ Open the [live demo](https://wasomma.github.io/fpv-sim/) or just open
 | Ellipses | Each side's error ellipse and CEP for its fix on the enemy GCS |
 | Flight Paths | Breadcrumb trails behind each drone |
 | Canopy | Vegetation overlay (canopy also degrades RF in the model) |
+| Status HUD | Team status cards in the upper map corners: drone state, battery, LOBs held, fix CEP, and engagement status — the race-to-fix at a glance |
 | Scenario | Curated seeds with known outcomes (see below) |
 | Random | Any seed; same seed always replays the identical engagement |
 

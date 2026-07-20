@@ -193,7 +193,8 @@ speed and climb; movement is simple dead reckoning per 0.1 s tick.
   flight-path trails, expanding RF pulse rings on transmit, fading LOBs
   (last 16, 30 s fade), enemy-drone track diamonds, error ellipses with CEP
   readout, unit symbols, explosion rings, map furniture (north arrow, 500 m
-  scale bar, AO label), selection ring.
+  scale bar, AO label), team status HUD cards (upper corners: drone state,
+  battery, LOB count, fix CEP, engagement status), selection ring.
 - World coordinates are meters with north up; `W2S()` flips Y for screen
   space. Canvas is DPI-aware (`devicePixelRatio` transform). The view uses a
   **cover fit**: it fills the pane and crops the square world's empty
