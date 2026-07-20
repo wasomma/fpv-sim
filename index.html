@@ -1327,16 +1327,16 @@ function drawMapFurniture(w, h){
   const botY = Math.min(view.oy + world.size * view.scale, h);
   const leftX = Math.max(view.ox, 0);
   ctx.save();
-  // North arrow.
-  ctx.strokeStyle = "rgba(200,220,230,0.5)"; ctx.fillStyle = "rgba(200,220,230,0.6)";
-  ctx.lineWidth = 1;
-  const nx = leftX + 16, ny = topY + 26;
-  ctx.beginPath(); ctx.moveTo(nx, ny); ctx.lineTo(nx, ny - 16); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(nx, ny - 20); ctx.lineTo(nx - 4, ny - 12); ctx.lineTo(nx + 4, ny - 12); ctx.closePath(); ctx.fill();
-  ctx.font = "9px " + fam; ctx.fillText("N", nx - 3, ny + 11);
+  // Layout: the AO label owns the top-left corner (the HUD card sits below
+  // it); the map-reading aids (scale bar + north arrow) are grouped in the
+  // bottom-left, raised clear of the bottom-edge grid labels.
+  // AO label.
+  ctx.fillStyle = "rgba(200,220,230,0.28)";
+  ctx.font = "10px " + fam;
+  ctx.fillText("AO KATANA (NOTIONAL) // GRID 500M", leftX + 14, topY + 14);
   // Scale bar: 500 m.
   const bl = 500 * view.scale;
-  const bx = leftX + 14, by = botY - 14;
+  const bx = leftX + 14, by = botY - 20;
   ctx.strokeStyle = "rgba(200,220,230,0.55)";
   ctx.beginPath();
   ctx.moveTo(bx, by); ctx.lineTo(bx + bl, by);
@@ -1344,11 +1344,15 @@ function drawMapFurniture(w, h){
   ctx.moveTo(bx + bl, by - 4); ctx.lineTo(bx + bl, by + 4);
   ctx.stroke();
   ctx.fillStyle = "rgba(200,220,230,0.55)";
-  ctx.fillText("500 M", bx + bl / 2 - 14, by - 6);
-  // AO label.
-  ctx.fillStyle = "rgba(200,220,230,0.28)";
-  ctx.font = "10px " + fam;
-  ctx.fillText("AO KATANA (NOTIONAL) // GRID 500M", bx, topY + 14);
+  ctx.font = "9px " + fam;
+  ctx.fillText("500 M", bx + bl / 2 - 14, by - 8);
+  // North arrow, to the right of the scale bar.
+  ctx.strokeStyle = "rgba(200,220,230,0.5)"; ctx.fillStyle = "rgba(200,220,230,0.6)";
+  ctx.lineWidth = 1;
+  const nx = bx + bl + 30, ny = by - 6;
+  ctx.beginPath(); ctx.moveTo(nx, ny); ctx.lineTo(nx, ny - 16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(nx, ny - 20); ctx.lineTo(nx - 4, ny - 12); ctx.lineTo(nx + 4, ny - 12); ctx.closePath(); ctx.fill();
+  ctx.fillText("N", nx - 3, ny + 11);
   ctx.restore();
 }
 
@@ -1362,10 +1366,15 @@ function drawHUD(w, h){
   const topY = Math.max(view.oy, 0);
   const leftX = Math.max(view.ox, 0);
   const rightX = Math.min(view.ox + world.size * view.scale, w);
-  const cw = 212, ch = 92, pad = 10, y0 = topY + 34;
+  const cw = 212, ch = 92, pad = 10;
+  // Below the AO label line; indented 28 px so the left-edge northing grid
+  // labels stay readable beside the BLUFOR card (mirrored on the right for
+  // symmetry). Panes too narrow for two cards skip the HUD entirely.
+  const y0 = topY + 24;
+  if (rightX - leftX < cw * 2 + 84) return;
   for (const side of ["BLUFOR", "OPFOR"]){
     const T = state.teams[side], d = T.drone;
-    const x0 = side === "BLUFOR" ? leftX + 12 : rightX - cw - 12;
+    const x0 = side === "BLUFOR" ? leftX + 28 : rightX - cw - 28;
     ctx.save();
     ctx.fillStyle = "rgba(13,18,22,0.82)";
     ctx.strokeStyle = hexA(T.color, 0.55); ctx.lineWidth = 1;
