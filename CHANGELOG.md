@@ -14,6 +14,8 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-07-23
+
 ### Added
 - **[PARAMETERS.md](PARAMETERS.md)**: the parameter reference — every
   tunable driving the simulation with default, unit, valid range, and
@@ -24,6 +26,7 @@ Monte Carlo results — such a change is called out explicitly as
 - RESULTS link in the sim header, connecting the live sim to the Monte
   Carlo dashboard (the dashboard already links back via its OPEN
   SIMULATION button and per-seed WATCH links).
+- This changelog.
 
 ## [1.2.0] — 2026-07-23
 
@@ -77,7 +80,8 @@ Monte Carlo results — such a change is called out explicitly as
 - Team status HUD cards, map overlay layout polish, cover-fit map view,
   and sidebar playback controls.
 
-[Unreleased]: https://github.com/wasomma/fpv-sim/compare/57ec4d8...HEAD
+[Unreleased]: https://github.com/wasomma/fpv-sim/compare/a57bce5...HEAD
+[1.3.0]: https://github.com/wasomma/fpv-sim/compare/57ec4d8...a57bce5
 [1.2.0]: https://github.com/wasomma/fpv-sim/compare/69cf528...57ec4d8
 [1.1.0]: https://github.com/wasomma/fpv-sim/compare/0cb383c...69cf528
 [1.0.0]: https://github.com/wasomma/fpv-sim/commits/0cb383c
