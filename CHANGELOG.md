@@ -14,6 +14,12 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
+### Fixed
+- The seed deep-link code crashed non-browser harnesses (no
+  `location`/`URLSearchParams` in fpv-sim-mcp's golden-fixture VM),
+  which would have broken that repo's weekly drift check. Now guarded;
+  fixture regeneration verified identical before and after.
+
 ## [1.3.0] — 2026-07-23
 
 ### Added

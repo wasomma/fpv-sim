@@ -157,6 +157,8 @@ generated from the same machine-readable table that validates inputs to the
   itself, which is extensively commented; the development history was written
   from the original authoring conversation and reconciled against the shipped
   code.
-- `index.html` is the entire application. It is named `index.html` so GitHub
-  Pages serves it at the repository root URL.
+- `index.html` is the entire simulation application. It is named `index.html`
+  so GitHub Pages serves it at the repository root URL. `dashboard.html` is
+  its companion results viewer — equally single-file and dependency-free,
+  reading the committed datasets in `results/`.
 - No build, no dependencies, no network calls. It runs from a `file://` URL.
