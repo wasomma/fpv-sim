@@ -162,3 +162,13 @@ generated from the same machine-readable table that validates inputs to the
   its companion results viewer — equally single-file and dependency-free,
   reading the committed datasets in `results/`.
 - No build, no dependencies, no network calls. It runs from a `file://` URL.
+
+## License
+
+This repository is public for demonstration, not open source. Licensed under
+the [PolyForm Strict License 1.0.0](LICENSE.md): you may read the code and use
+it for noncommercial purposes, but no rights are granted to modify,
+redistribute, or use it commercially. (Opening the hosted demo and dashboard in
+your browser is exactly the intended use.)
+
+Required Notice: Copyright © 2026 Wesley Fine (https://github.com/wasomma)

@@ -15,6 +15,10 @@ Monte Carlo results — such a change is called out explicitly as
 ## [Unreleased]
 
 ### Added
+- **License** ([LICENSE.md](LICENSE.md)): the repository is now explicitly
+  licensed under the PolyForm Strict License 1.0.0 — public to read and
+  use noncommercially, but not open source (no modification,
+  redistribution, or commercial use).
 - **Ad-hoc sweeps** (`scripts/run-sweep.mjs`): run any seed range under
   any config overrides and save a labeled dataset the dashboard shows
   alongside the canonical study. The dataset dropdown now labels each
