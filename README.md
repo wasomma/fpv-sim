@@ -145,7 +145,10 @@ Every simulation parameter is in the `CONFIG` object at the top of the script
 block in `index.html` — drone speeds and endurance, DF scan rate and bearing
 error, fix-quality gates, and each team's EMCON duty cycles. Units are meters,
 meters/second, simulated seconds, and degrees. Change a number, reload, replay
-the same seed, and compare outcomes.
+the same seed, and compare outcomes. **[PARAMETERS.md](PARAMETERS.md)** is the
+full reference — every tunable with default, unit, valid range, and rationale,
+generated from the same machine-readable table that validates inputs to the
+[fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp) tools.
 
 ## Provenance and repo notes
 
