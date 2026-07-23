@@ -1,0 +1,72 @@
+# Changelog
+
+All notable changes to fpv-sim are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
+[Semantic Versioning](https://semver.org/) (major = breaking change to the
+sim's behavior contract, since same-seed determinism is the API here; minor
+= new features; patch = fixes).
+
+A note on determinism: any change that alters engagement outcomes for a
+given seed invalidates the golden fixtures in
+[fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp) and the committed
+Monte Carlo results — such a change is called out explicitly as
+**Behavior-changing** in its entry, and requires regenerating both.
+
+## [Unreleased]
+
+## [1.2.0] — 2026-07-23
+
+### Added
+- **Results dashboard** (`dashboard.html`): interactive, zero-dependency
+  view of the Monte Carlo results — headline win rates with confidence
+  intervals, the uplink duty-cycle dose-response chart, paired-comparison
+  dumbbells, time-to-fix / time-to-kill distributions, and a notable-seeds
+  table. Served by GitHub Pages next to the sim.
+- **Seed deep links**: `index.html?seed=<n>&play=1` opens the sim at an
+  exact engagement, so any statistic can link to the watchable battle
+  behind it. Not behavior-changing: the parameter only selects which
+  engagement loads.
+- Study runner enrichments: 60 s-bin histograms, provenance stamping
+  (sim commit, engine commit, computed run count), and a
+  `results/index.json` manifest so the dashboard can list datasets over
+  time.
+
+### Fixed
+- Corrected the total engagement count in MONTE_CARLO.md and the README:
+  the study is 22,800 engagements, not 27,800 as previously misstated. The
+  runner now computes the count instead of it being hand-written.
+
+## [1.1.0] — 2026-07-23
+
+### Added
+- **Monte Carlo study** ([MONTE_CARLO.md](MONTE_CARLO.md)): statistical
+  backing for the EMCON lesson from 22,800 deterministic engagements run
+  on the [fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp) engine —
+  baseline win rates with confidence intervals, paired same-seed
+  comparisons (discipline parity, posture swap, launch-stagger test), and
+  the uplink duty-cycle dose-response sweep. Committed dataset in
+  `results/`, reproducible via `scripts/monte-carlo-study.mjs`.
+- "In plain English" README section explaining the sim and the study
+  findings for readers without a simulation or RF background.
+
+### Notable finding
+- The 6-second launch stagger between the teams contributes nothing to
+  outcomes (all rate deltas < 0.5 points at n=2,000); EMCON posture
+  explains essentially the entire baseline win-rate gap.
+
+## [1.0.0] — 2026-07-20
+
+### Added
+- Initial public release: the single-file force-on-force simulation
+  (`index.html`) — terrain and RF propagation models, DF geolocation with
+  weighted-least-squares fixes and honest error ellipses, drone state
+  machine with EMCON duty cycles, five featured scenarios, deterministic
+  seeded replays — plus README, [DESIGN_NOTES.md](DESIGN_NOTES.md), and
+  [DEVELOPMENT_HISTORY.md](DEVELOPMENT_HISTORY.md).
+- Team status HUD cards, map overlay layout polish, cover-fit map view,
+  and sidebar playback controls.
+
+[Unreleased]: https://github.com/wasomma/fpv-sim/compare/57ec4d8...HEAD
+[1.2.0]: https://github.com/wasomma/fpv-sim/compare/69cf528...57ec4d8
+[1.1.0]: https://github.com/wasomma/fpv-sim/compare/0cb383c...69cf528
+[1.0.0]: https://github.com/wasomma/fpv-sim/commits/0cb383c
