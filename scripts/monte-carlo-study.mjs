@@ -22,7 +22,8 @@
 
 import { pathToFileURL } from "node:url";
 import { resolve, join } from "node:path";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 const mcpRoot = resolve(process.env.FPV_SIM_MCP ?? join(import.meta.dirname, "..", "..", "fpv-sim-mcp"));
 const enginePath = join(mcpRoot, "dist", "src", "engine", "index.js");
@@ -57,9 +58,26 @@ function wilson(successes, n) {
   return { p: r(p), lo: r(center - half), hi: r(center + half) };
 }
 
+/* Fixed-width binning so the dashboard can draw distribution shapes; the
+   summary stats alone (mean/median/p10/p90) hide bimodality. */
+const HIST_BIN_S = 60;
+function histogram(values) {
+  if (values.length === 0) return null;
+  const counts = [];
+  for (const v of values) {
+    const bin = Math.floor(v / HIST_BIN_S);
+    counts[bin] = (counts[bin] ?? 0) + 1;
+  }
+  for (let i = 0; i < counts.length; i++) counts[i] = counts[i] ?? 0;
+  return { bin_width_s: HIST_BIN_S, counts, n: values.length };
+}
+
+let totalRuns = 0;
+
 function sweep(seedList, overrides, label) {
   const t0 = Date.now();
   const results = seedList.map((s) => runEngagement(s, overrides));
+  totalRuns += results.length;
   const agg = aggregateSweep(results);
   const n = agg.runs;
   agg.ci95 = {
@@ -67,12 +85,36 @@ function sweep(seedList, overrides, label) {
     OPFOR: wilson(agg.outcomes.OPFOR, n),
     STALEMATE: wilson(agg.outcomes.STALEMATE, n),
   };
+  agg.histograms = {
+    time_to_fix_s: {
+      BLUFOR: histogram(results.map((r) => r.teams.BLUFOR.fix_established_t_s).filter((t) => t !== null)),
+      OPFOR: histogram(results.map((r) => r.teams.OPFOR.fix_established_t_s).filter((t) => t !== null)),
+    },
+    time_to_kill_s: histogram(results.filter((r) => r.outcome.result !== "STALEMATE").map((r) => r.duration_s)),
+  };
   console.error(`  ${label}: ${n} runs in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
     `— B ${agg.outcomes.BLUFOR} / O ${agg.outcomes.OPFOR} / S ${agg.outcomes.STALEMATE}`);
   return { results, agg };
 }
 
-const study = { quick: QUICK, experiments: {} };
+function gitCommit(dir) {
+  try {
+    return execSync("git rev-parse HEAD", { cwd: dir, encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
+
+const study = {
+  quick: QUICK,
+  meta: {
+    generated: new Date().toISOString(),
+    sim_commit: gitCommit(join(import.meta.dirname, "..")),
+    engine_commit: gitCommit(mcpRoot),
+    engine_source: "https://github.com/wasomma/fpv-sim-mcp",
+  },
+  experiments: {},
+};
 
 /* ---------------------------------------------------------------- E1
  * Baseline: stock CONFIG over a large seed range. The headline number:
@@ -146,8 +188,34 @@ console.error("E3 uplink duty-cycle sensitivity...");
   study.experiments.uplinkDutySensitivity = { period_s: PERIOD, seeds_per_cell: cellSeeds.length, cells };
 }
 
+study.meta.total_runs = totalRuns;
+
 const outDir = join(import.meta.dirname, "..", "results");
 mkdirSync(outDir, { recursive: true });
-const outPath = join(outDir, QUICK ? "monte-carlo-quick.json" : "monte-carlo.json");
+const outFile = QUICK ? "monte-carlo-quick.json" : "monte-carlo.json";
+const outPath = join(outDir, outFile);
 writeFileSync(outPath, JSON.stringify(study, null, 2));
-console.error(`\nWrote ${outPath}`);
+console.error(`\nWrote ${outPath} (${totalRuns} engagements)`);
+
+/* Register full runs in the manifest the dashboard reads. Quick runs are
+   dev smoke passes and stay out of it. */
+if (!QUICK) {
+  const manifestPath = join(outDir, "index.json");
+  const manifest = existsSync(manifestPath)
+    ? JSON.parse(readFileSync(manifestPath, "utf8"))
+    : { datasets: [] };
+  manifest.datasets = manifest.datasets.filter((d) => d.file !== outFile);
+  manifest.datasets.unshift({
+    file: outFile,
+    generated: study.meta.generated,
+    sim_commit: study.meta.sim_commit,
+    engine_commit: study.meta.engine_commit,
+    total_runs: totalRuns,
+    baseline: {
+      runs: study.experiments.baseline.runs,
+      win_rates: study.experiments.baseline.win_rates,
+    },
+  });
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+  console.error(`Updated ${manifestPath}`);
+}

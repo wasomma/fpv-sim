@@ -1,6 +1,7 @@
 # FPV sUAS vs cUAS — Force-on-Force Demonstration
 
-**Live demo: https://wasomma.github.io/fpv-sim/**
+**Live demo: https://wasomma.github.io/fpv-sim/** ·
+**Results dashboard: https://wasomma.github.io/fpv-sim/dashboard.html**
 
 A single-file, zero-dependency interactive simulation of a force-on-force engagement
 between two teams, each fielding an armed FPV small-UAS (sUAS) and a pair of
@@ -43,7 +44,7 @@ that talks less on the radio is harder to find, and usually wins.**
 The demo's featured scenarios show that lesson in single battles — but
 hand-picked examples are a highlight reel, and a fair skeptic can ask
 whether the games were picked because the idea looks good in them. So the
-claim was put to a real test: the same battle played **27,800 times**
+claim was put to a real test: the same battle played **22,800 times**
 automatically, counting who wins. The results, in
 **[MONTE_CARLO.md](MONTE_CARLO.md)**:
 
@@ -60,7 +61,7 @@ automatically, counting who wins. The results, in
   entire gap.
 
 And because every battle is exactly repeatable from its seed number,
-anyone can rerun the same 27,800 battles and get the same numbers — the
+anyone can rerun the same 22,800 battles and get the same numbers — the
 results are checkable, not "trust me."
 
 ## Quick start
@@ -132,7 +133,7 @@ made: the requirements baseline, the bugs found and fixed along the way
 (including the overconfident-estimator fix), and why the featured-scenario
 approach was chosen over forcing decisive outcomes. See
 **[MONTE_CARLO.md](MONTE_CARLO.md)** for the statistical backing behind the
-EMCON lesson: 27,800 engagements run on the headless engine from
+EMCON lesson: 22,800 engagements run on the headless engine from
 [fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp), showing the
 disciplined side wins 36.8% to 26.3% under stock config, that the advantage
 follows the EMCON posture when postures are swapped, and that win rate

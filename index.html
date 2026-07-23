@@ -1566,7 +1566,21 @@ function loop(ts){
 
 /* ---------------------- INIT ---------------------------------------- */
 resizeCanvas();
-resetSim(CONFIG.SEED);
+// Deep link: ?seed=<n> loads a specific engagement (&play=1 starts it), so
+// external pages — e.g. the results dashboard — can link any statistic
+// straight to the watchable battle behind it. Determinism makes the link a
+// complete reproduction, not an approximation.
+const qs = new URLSearchParams(location.search);
+const qsSeed = Number.parseInt(qs.get("seed") ?? "", 10);
+if (Number.isFinite(qsSeed) && qsSeed >= 0){
+  resetSim(qsSeed);
+  const sel = document.getElementById("scenario");
+  if (sel.querySelector(`option[value="${qsSeed}"]`)) sel.value = String(qsSeed);
+  else { sel.querySelector('option[value="custom"]').hidden = false; sel.value = "custom"; }
+  if (qs.get("play") === "1"){ state.playing = true; updatePlayBtn(); }
+} else {
+  resetSim(CONFIG.SEED);
+}
 requestAnimationFrame(loop);
 </script>
 </body>
