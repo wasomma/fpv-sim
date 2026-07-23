@@ -1,0 +1,19 @@
+{
+  "datasets": [
+    {
+      "file": "monte-carlo.json",
+      "generated": "2026-07-23T07:04:42.748Z",
+      "sim_commit": "1c0c32719bfe8c5149a7bc5cf711732a1bd62ac3",
+      "engine_commit": "fcab03c52b835a42e872b27391de8420576f3bec",
+      "total_runs": 22800,
+      "baseline": {
+        "runs": 10000,
+        "win_rates": {
+          "BLUFOR": 0.368,
+          "OPFOR": 0.263,
+          "STALEMATE": 0.368
+        }
+      }
+    }
+  ]
+}
