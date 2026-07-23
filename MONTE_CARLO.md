@@ -2,7 +2,7 @@
 
 The README claims the sim's core lesson is that **the side that transmits
 less is harder to fix**. The featured scenarios illustrate that claim with
-curated seeds; this document backs it with statistics: 27,800 deterministic
+curated seeds; this document backs it with statistics: 22,800 deterministic
 engagements across four experiments. The headline results:
 
 - Under stock configuration, the disciplined side (BLUFOR) wins **36.8%** of
@@ -21,6 +21,10 @@ engagements across four experiments. The headline results:
 As everywhere in this project, all data is **notional**. These are
 statements about the model, not about any real system (see
 [Scope and caveats](#scope-and-caveats)).
+
+An interactive view of these results — including click-to-replay links from
+any statistic to the watchable engagement behind it — lives at
+**[dashboard.html](https://wasomma.github.io/fpv-sim/dashboard.html)**.
 
 ## Method
 
