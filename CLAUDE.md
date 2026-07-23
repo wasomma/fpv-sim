@@ -33,12 +33,23 @@ generated FROM this file. Consequences:
   serves it at the root URL). Supports `?seed=<n>&play=1` deep links.
 - `dashboard.html` — companion results viewer, equally single-file; reads
   `results/index.json` (manifest) and the datasets it lists.
-- `scripts/monte-carlo-study.mjs` — the study runner. `--quick` for a
-  1/10-scale smoke pass (~4 min); full run ~25 min, 22,800 engagements.
+- `scripts/monte-carlo-study.mjs` — the canonical study runner (the four
+  experiments). `--quick` for a 1/10-scale smoke pass (~4 min); full run
+  ~25 min, 22,800 engagements. Writes `results/monte-carlo.json`,
+  `kind:"study"`.
+- `scripts/run-sweep.mjs` — ad-hoc single-sweep runner: `--label` (req),
+  `--start`, `--count`, `--overrides` (JSON). Writes an
+  `adhoc-<slug>-<date>.json` dataset, `kind:"adhoc"`, and registers it.
+  The dashboard prefixes these AD-HOC and offers a STUDY/AD-HOC filter;
+  ad-hoc datasets carry only a `baseline` sweep, so the dashboard's dose
+  and paired cards render only when those experiments exist.
+- `scripts/sweep-utils.mjs` — shared helpers (engine load, Wilson CIs,
+  histograms, manifest upsert) both runners use, so they can't drift.
 - `scripts/generate-parameters-doc.mjs` — regenerates PARAMETERS.md.
-- `results/` — committed datasets + manifest. Quick-run output is a dev
-  artifact: don't commit it, don't register it in the manifest (the
-  runner already handles both).
+- `results/` — committed datasets + manifest (`index.json`; each entry
+  has a `kind` and `label`). Quick-run output (`monte-carlo-quick.json`)
+  is a dev artifact, gitignored and never registered. Retire an ad-hoc
+  dataset by deleting its file and its manifest entry.
 
 Both scripts import the **built** engine from a fpv-sim-mcp checkout:
 sibling directory `../fpv-sim-mcp` by default, or `$FPV_SIM_MCP`. Build it

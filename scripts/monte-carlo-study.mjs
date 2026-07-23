@@ -20,21 +20,11 @@
  * number in MONTE_CARLO.md exactly.
  */
 
-import { pathToFileURL } from "node:url";
-import { resolve, join } from "node:path";
-import { writeFileSync, readFileSync, mkdirSync, existsSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { join } from "node:path";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { loadEngine, seeds, buildAgg, gitCommit, registerDataset, REPO_ROOT, RESULTS_DIR } from "./sweep-utils.mjs";
 
-const mcpRoot = resolve(process.env.FPV_SIM_MCP ?? join(import.meta.dirname, "..", "..", "fpv-sim-mcp"));
-const enginePath = join(mcpRoot, "dist", "src", "engine", "index.js");
-let engine;
-try {
-  engine = await import(pathToFileURL(enginePath).href);
-} catch (err) {
-  console.error(`Cannot load engine at ${enginePath}.`);
-  console.error("Clone and build fpv-sim-mcp first (npm install && npm test), or set $FPV_SIM_MCP.");
-  throw err;
-}
+const { engine, mcpRoot } = await loadEngine();
 const { runEngagement, aggregateSweep, comparePaired } = engine;
 
 const QUICK = process.argv.includes("--quick");
@@ -43,34 +33,6 @@ const scale = (n) => (QUICK ? Math.max(50, Math.round(n / 10)) : n);
 /* Seed lists are contiguous ranges so any result is reproducible from the
    range alone (also directly reproducible via the MCP server's sweep_seeds /
    compare_configs tools for counts within their caps). */
-const seeds = (start, count) => Array.from({ length: count }, (_, i) => start + i);
-
-/* 95% Wilson score interval for a binomial proportion — preferred over the
-   normal approximation because win rates sit well away from 0.5 and sweep
-   sizes vary. */
-function wilson(successes, n) {
-  if (n === 0) return null;
-  const z = 1.959963984540054, p = successes / n;
-  const denom = 1 + (z * z) / n;
-  const center = (p + (z * z) / (2 * n)) / denom;
-  const half = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / denom;
-  const r = (v) => Math.round(v * 10000) / 10000;
-  return { p: r(p), lo: r(center - half), hi: r(center + half) };
-}
-
-/* Fixed-width binning so the dashboard can draw distribution shapes; the
-   summary stats alone (mean/median/p10/p90) hide bimodality. */
-const HIST_BIN_S = 60;
-function histogram(values) {
-  if (values.length === 0) return null;
-  const counts = [];
-  for (const v of values) {
-    const bin = Math.floor(v / HIST_BIN_S);
-    counts[bin] = (counts[bin] ?? 0) + 1;
-  }
-  for (let i = 0; i < counts.length; i++) counts[i] = counts[i] ?? 0;
-  return { bin_width_s: HIST_BIN_S, counts, n: values.length };
-}
 
 let totalRuns = 0;
 
@@ -78,38 +40,19 @@ function sweep(seedList, overrides, label) {
   const t0 = Date.now();
   const results = seedList.map((s) => runEngagement(s, overrides));
   totalRuns += results.length;
-  const agg = aggregateSweep(results);
-  const n = agg.runs;
-  agg.ci95 = {
-    BLUFOR: wilson(agg.outcomes.BLUFOR, n),
-    OPFOR: wilson(agg.outcomes.OPFOR, n),
-    STALEMATE: wilson(agg.outcomes.STALEMATE, n),
-  };
-  agg.histograms = {
-    time_to_fix_s: {
-      BLUFOR: histogram(results.map((r) => r.teams.BLUFOR.fix_established_t_s).filter((t) => t !== null)),
-      OPFOR: histogram(results.map((r) => r.teams.OPFOR.fix_established_t_s).filter((t) => t !== null)),
-    },
-    time_to_kill_s: histogram(results.filter((r) => r.outcome.result !== "STALEMATE").map((r) => r.duration_s)),
-  };
-  console.error(`  ${label}: ${n} runs in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
+  const agg = buildAgg(results, aggregateSweep);
+  console.error(`  ${label}: ${agg.runs} runs in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
     `— B ${agg.outcomes.BLUFOR} / O ${agg.outcomes.OPFOR} / S ${agg.outcomes.STALEMATE}`);
   return { results, agg };
 }
 
-function gitCommit(dir) {
-  try {
-    return execSync("git rev-parse HEAD", { cwd: dir, encoding: "utf8" }).trim();
-  } catch {
-    return null;
-  }
-}
-
 const study = {
   quick: QUICK,
+  kind: "study",
+  label: "Full study",
   meta: {
     generated: new Date().toISOString(),
-    sim_commit: gitCommit(join(import.meta.dirname, "..")),
+    sim_commit: gitCommit(REPO_ROOT),
     engine_commit: gitCommit(mcpRoot),
     engine_source: "https://github.com/wasomma/fpv-sim-mcp",
   },
@@ -190,23 +133,19 @@ console.error("E3 uplink duty-cycle sensitivity...");
 
 study.meta.total_runs = totalRuns;
 
-const outDir = join(import.meta.dirname, "..", "results");
-mkdirSync(outDir, { recursive: true });
+mkdirSync(RESULTS_DIR, { recursive: true });
 const outFile = QUICK ? "monte-carlo-quick.json" : "monte-carlo.json";
-const outPath = join(outDir, outFile);
+const outPath = join(RESULTS_DIR, outFile);
 writeFileSync(outPath, JSON.stringify(study, null, 2));
 console.error(`\nWrote ${outPath} (${totalRuns} engagements)`);
 
 /* Register full runs in the manifest the dashboard reads. Quick runs are
    dev smoke passes and stay out of it. */
 if (!QUICK) {
-  const manifestPath = join(outDir, "index.json");
-  const manifest = existsSync(manifestPath)
-    ? JSON.parse(readFileSync(manifestPath, "utf8"))
-    : { datasets: [] };
-  manifest.datasets = manifest.datasets.filter((d) => d.file !== outFile);
-  manifest.datasets.unshift({
+  const manifestPath = registerDataset({
     file: outFile,
+    kind: "study",
+    label: "Full study",
     generated: study.meta.generated,
     sim_commit: study.meta.sim_commit,
     engine_commit: study.meta.engine_commit,
@@ -216,6 +155,5 @@ if (!QUICK) {
       win_rates: study.experiments.baseline.win_rates,
     },
   });
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
   console.error(`Updated ${manifestPath}`);
 }
