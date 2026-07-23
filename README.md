@@ -95,7 +95,13 @@ rationale behind every number in `CONFIG`. See
 **[DEVELOPMENT_HISTORY.md](DEVELOPMENT_HISTORY.md)** for how the project was
 made: the requirements baseline, the bugs found and fixed along the way
 (including the overconfident-estimator fix), and why the featured-scenario
-approach was chosen over forcing decisive outcomes.
+approach was chosen over forcing decisive outcomes. See
+**[MONTE_CARLO.md](MONTE_CARLO.md)** for the statistical backing behind the
+EMCON lesson: 27,800 engagements run on the headless engine from
+[fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp), showing the
+disciplined side wins 36.8% to 26.3% under stock config, that the advantage
+follows the EMCON posture when postures are swapped, and that win rate
+responds dose-dependently to uplink duty cycle.
 
 ## Tuning
 
