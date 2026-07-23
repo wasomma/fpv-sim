@@ -38,6 +38,11 @@
     font-size:11px; letter-spacing:.35em; color:var(--dim);
     border-left:1px solid var(--border); padding-left:14px; user-select:none;
   }
+  header .hdr-link{
+    font-size:11px; letter-spacing:.15em; color:var(--text); text-decoration:none;
+    border:1px solid var(--border); padding:4px 10px; white-space:nowrap;
+  }
+  header .hdr-link:hover{border-color:var(--dim); color:#e8f2f5}
   main{flex:1 1 auto; display:flex; min-height:0}
   #mapwrap{flex:1 1 auto; position:relative; min-width:0; background:#060a0c}
   #map{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair}
@@ -138,6 +143,7 @@
       <span id="simclock">T+00:00</span>
       <span id="phase">PHASE I // EMPLACEMENT</span>
     </div>
+    <a class="hdr-link" href="dashboard.html" title="Monte Carlo results dashboard">RESULTS</a>
     <div class="brand">ONEARC</div>
   </header>
   <main>
