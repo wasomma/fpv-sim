@@ -91,6 +91,12 @@
 <header>
   <div class="title"><b>MONTE CARLO RESULTS</b> <span>// FPV sUAS vs cUAS // AO KATANA (NOTIONAL)</span></div>
   <nav>
+    <label for="kindFilter" style="font-size:10px;letter-spacing:.2em;color:var(--dim)">SHOW</label>
+    <select id="kindFilter">
+      <option value="all">ALL DATASETS</option>
+      <option value="study">STUDIES ONLY</option>
+      <option value="adhoc">AD-HOC ONLY</option>
+    </select>
     <label for="dataset" style="font-size:10px;letter-spacing:.2em;color:var(--dim)">DATASET</label>
     <select id="dataset"></select>
     <a href="index.html">OPEN SIMULATION</a>
@@ -227,10 +233,13 @@ function renderTiles(data) {
   const wrap = document.getElementById("tiles");
   wrap.innerHTML = "";
   const decisive = b.outcomes.BLUFOR + b.outcomes.OPFOR;
+  // The stock-posture qualifiers only describe the default config; ad-hoc
+  // datasets may override EMCON, so they get neutral labels.
+  const adhoc = data.kind === "adhoc";
   const tiles = [
-    { lbl: "BLUFOR wins (disciplined)", col: COL.B, v: pct(b.win_rates.BLUFOR),
+    { lbl: adhoc ? "BLUFOR wins" : "BLUFOR wins (disciplined)", col: COL.B, v: pct(b.win_rates.BLUFOR),
       sub: `95% CI ${pct(b.ci95.BLUFOR.lo)} – ${pct(b.ci95.BLUFOR.hi)} · n=${b.runs.toLocaleString()}` },
-    { lbl: "OPFOR wins (continuous)", col: COL.O, v: pct(b.win_rates.OPFOR),
+    { lbl: adhoc ? "OPFOR wins" : "OPFOR wins (continuous)", col: COL.O, v: pct(b.win_rates.OPFOR),
       sub: `95% CI ${pct(b.ci95.OPFOR.lo)} – ${pct(b.ci95.OPFOR.hi)} · n=${b.runs.toLocaleString()}` },
     { lbl: "Stalemates (nobody fixes)", col: COL.S, v: pct(b.win_rates.STALEMATE),
       sub: `95% CI ${pct(b.ci95.STALEMATE.lo)} – ${pct(b.ci95.STALEMATE.hi)} · all both-drones-down` },
@@ -247,6 +256,7 @@ function renderTiles(data) {
 
 function renderDose(data) {
   const e3 = data.experiments.uplinkDutySensitivity;
+  if (!e3) return; // ad-hoc datasets carry a single sweep, not the E3 grid
   const card = chartCard(
     "Dose response — OPFOR uplink duty cycle vs win rate",
     "The more OPFOR transmits, the more its enemy wins. Uplink on-time swept 2–12 s of a fixed " +
@@ -300,6 +310,7 @@ function renderDose(data) {
 
 function renderPaired(data) {
   const stock = data.experiments.pairedStockArm;
+  if (!stock) return; // ad-hoc datasets carry a single sweep, not the E2 pairs
   const exps = [
     { key: "opforAdoptsDiscipline", name: "OPFOR adopts BLUFOR discipline" },
     { key: "postureSwap", name: "Full EMCON posture swap" },
@@ -417,12 +428,13 @@ function renderSeeds(data) {
     else rows.push({ label, seed: entry.seed, who: entry.winner === "BLUFOR" ? "B" : "O",
       detail: `${entry.winner} victory at T+${fmtS(entry.t_s)}` });
   };
+  const adhoc = data.kind === "adhoc";
   const b = data.experiments.baseline.notable_seeds;
-  add("Fastest kill in the baseline", b.fastest_kill);
-  add("Slowest kill in the baseline", b.slowest_kill);
+  add(adhoc ? "Fastest kill in this sweep" : "Fastest kill in the baseline", b.fastest_kill);
+  add(adhoc ? "Slowest kill in this sweep" : "Slowest kill in the baseline", b.slowest_kill);
   add("A representative stalemate", b.example_stalemate);
-  const swap = data.experiments.postureSwap.variant.notable_seeds;
-  add("Fastest kill with postures swapped", swap.fastest_kill);
+  const swap = data.experiments.postureSwap?.variant.notable_seeds;
+  if (swap) add("Fastest kill with postures swapped", swap.fastest_kill);
   const host = document.getElementById("seeds");
   host.innerHTML = "";
   const t = document.createElement("table");
@@ -438,11 +450,19 @@ function renderSeeds(data) {
 function renderProvenance(data, entry) {
   const m = data.meta ?? {};
   const short = (c) => (c ? c.slice(0, 7) : "unknown");
-  document.getElementById("prov").innerHTML =
+  const kindTag = data.kind === "adhoc"
+    ? `AD-HOC sweep "${data.label ?? "unlabeled"}"` +
+      (m.seed_range ? ` · seeds ${m.seed_range.start}–${m.seed_range.start + m.seed_range.count - 1}` : "") +
+      (m.overrides ? ` · overrides <code>${JSON.stringify(m.overrides)}</code>` : " · stock config") + "<br>"
+    : "";
+  document.getElementById("prov").innerHTML = kindTag +
     `Dataset: <code>${entry.file}</code> · generated ${m.generated ? m.generated.slice(0, 10) : "?"} · ` +
     `${(m.total_runs ?? 0).toLocaleString()} engagements · ` +
     `sim <code>${short(m.sim_commit)}</code> · engine <code>${short(m.engine_commit)}</code><br>` +
-    `Deterministic and reproducible: <code>node scripts/monte-carlo-study.mjs</code> regenerates every number ` +
+    `Deterministic and reproducible: <code>${data.kind === "adhoc"
+      ? `node scripts/run-sweep.mjs --label "${data.label ?? ""}" --start ${m.seed_range?.start ?? 1} --count ${m.seed_range?.count ?? 0}` +
+        (m.overrides ? ` --overrides '${JSON.stringify(m.overrides)}'` : "")
+      : "node scripts/monte-carlo-study.mjs"}</code> regenerates every number ` +
     `(see <a style="color:var(--blufor-hi)" href="https://github.com/wasomma/fpv-sim/blob/main/MONTE_CARLO.md">MONTE_CARLO.md</a>). ` +
     `All data is notional and unclassified.`;
 }
@@ -475,14 +495,35 @@ async function init() {
     return;
   }
   const sel = document.getElementById("dataset");
-  manifest.datasets.forEach((d, i) => {
-    const o = document.createElement("option");
-    o.value = i;
-    o.textContent = `${d.generated.slice(0, 10)} · ${d.total_runs.toLocaleString()} runs · sim ${d.sim_commit ? d.sim_commit.slice(0, 7) : "?"}`;
-    sel.appendChild(o);
-  });
+  const kindSel = document.getElementById("kindFilter");
+  const kindOf = (d) => d.kind ?? "study"; // pre-kind manifest entries are studies
+  const labelOf = (d) => d.label ?? "Full study";
+  function repopulate() {
+    const list = manifest.datasets.filter((d) => kindSel.value === "all" || kindOf(d) === kindSel.value);
+    sel.innerHTML = "";
+    for (const d of list) {
+      const o = document.createElement("option");
+      o.value = manifest.datasets.indexOf(d);
+      o.textContent = `${kindOf(d) === "adhoc" ? "AD-HOC" : "STUDY"} · ${labelOf(d)} · ` +
+        `${d.generated.slice(0, 10)} · ${d.total_runs.toLocaleString()} runs`;
+      sel.appendChild(o);
+    }
+    return list;
+  }
+  async function applyFilter() {
+    const list = repopulate();
+    if (list.length === 0) {
+      document.getElementById("content").hidden = true;
+      const st = document.getElementById("status");
+      st.hidden = false;
+      st.textContent = "No datasets match this filter.";
+      return;
+    }
+    await loadDataset(list[0]);
+  }
+  kindSel.addEventListener("change", applyFilter);
   sel.addEventListener("change", () => loadDataset(manifest.datasets[Number(sel.value)]));
-  await loadDataset(manifest.datasets[0]);
+  await applyFilter();
 }
 init();
 </script>

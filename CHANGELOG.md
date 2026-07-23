@@ -14,6 +14,15 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
+### Added
+- **Ad-hoc sweeps** (`scripts/run-sweep.mjs`): run any seed range under
+  any config overrides and save a labeled dataset the dashboard shows
+  alongside the canonical study. The dataset dropdown now labels each
+  entry STUDY or AD-HOC and offers a SHOW filter (all / studies only /
+  ad-hoc only); ad-hoc datasets render their headline tiles, timelines,
+  and click-to-watch seeds, omitting the study-only dose and paired
+  charts. Shared runner logic extracted to `scripts/sweep-utils.mjs`.
+
 ### Fixed
 - The seed deep-link code crashed non-browser harnesses (no
   `location`/`URLSearchParams` in fpv-sim-mcp's golden-fixture VM),
