@@ -1576,14 +1576,20 @@ resizeCanvas();
 // external pages — e.g. the results dashboard — can link any statistic
 // straight to the watchable battle behind it. Determinism makes the link a
 // complete reproduction, not an approximation.
-const qs = new URLSearchParams(location.search);
-const qsSeed = Number.parseInt(qs.get("seed") ?? "", 10);
+// Guarded so the file also loads in headless harnesses (the golden-fixture
+// generator runs this script in a Node vm with no location/URLSearchParams).
+let qsSeed = NaN, qsPlay = false;
+try {
+  const qs = new URLSearchParams(location.search);
+  qsSeed = Number.parseInt(qs.get("seed") ?? "", 10);
+  qsPlay = qs.get("play") === "1";
+} catch { /* not a browser: no deep link */ }
 if (Number.isFinite(qsSeed) && qsSeed >= 0){
   resetSim(qsSeed);
   const sel = document.getElementById("scenario");
   if (sel.querySelector(`option[value="${qsSeed}"]`)) sel.value = String(qsSeed);
   else { sel.querySelector('option[value="custom"]').hidden = false; sel.value = "custom"; }
-  if (qs.get("play") === "1"){ state.playing = true; updatePlayBtn(); }
+  if (qsPlay){ state.playing = true; updatePlayBtn(); }
 } else {
   resetSim(CONFIG.SEED);
 }
