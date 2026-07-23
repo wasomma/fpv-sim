@@ -28,6 +28,41 @@ EMCON posture — one side keys its C2 uplink intermittently and its video
 downlink in short bursts; the other transmits nearly continuously. Run the
 featured scenarios and watch which ground control station dies first.
 
+## In plain English
+
+No radio or simulation background needed — this is the whole thing:
+
+Two teams each field an attack drone and radio-listening gear, and hunt
+each other's control stations. The catch: every time your equipment
+transmits, the enemy's listening posts get a rough bearing on where the
+signal came from. Enough bearings, and they can pinpoint your control
+station and send their drone to destroy it. So the game is a race — find
+the enemy before they find you — and the core lesson is that **the team
+that talks less on the radio is harder to find, and usually wins.**
+
+The demo's featured scenarios show that lesson in single battles — but
+hand-picked examples are a highlight reel, and a fair skeptic can ask
+whether the games were picked because the idea looks good in them. So the
+claim was put to a real test: the same battle played **27,800 times**
+automatically, counting who wins. The results, in
+**[MONTE_CARLO.md](MONTE_CARLO.md)**:
+
+- Played as shipped, the disciplined team wins 37% of battles, the chatty
+  team 26%, and 37% are draws where neither side ever finds the other —
+  about 3 wins for every 2 of the loud team's.
+- Give both teams the same radio discipline and the fight goes dead even;
+  swap the two teams' radio habits and the advantage swaps with them.
+  Whoever talks less wins more, regardless of which team it is.
+- The more a team transmits, the more it loses — smoothly, like a dial,
+  not a coin flip.
+- One team's drone launches 6 seconds earlier, and that head start turns
+  out to matter not at all. Radio discipline explains essentially the
+  entire gap.
+
+And because every battle is exactly repeatable from its seed number,
+anyone can rerun the same 27,800 battles and get the same numbers — the
+results are checkable, not "trust me."
+
 ## Quick start
 
 Open the [live demo](https://wasomma.github.io/fpv-sim/) or just open
