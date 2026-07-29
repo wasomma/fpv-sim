@@ -1,7 +1,8 @@
 # FPV sUAS vs cUAS — Force-on-Force Demonstration
 
 **Live demo: https://wasomma.github.io/fpv-sim/** ·
-**Results dashboard: https://wasomma.github.io/fpv-sim/dashboard.html**
+**Results dashboard: https://wasomma.github.io/fpv-sim/dashboard.html** ·
+**3D viewer (WebGPU, experimental): https://wasomma.github.io/fpv-sim/viewer3d.html**
 
 A single-file, zero-dependency interactive simulation of a force-on-force engagement
 between two teams, each fielding an armed FPV small-UAS (sUAS) and a pair of
@@ -161,6 +162,14 @@ generated from the same machine-readable table that validates inputs to the
   so GitHub Pages serves it at the repository root URL. `dashboard.html` is
   its companion results viewer — equally single-file and dependency-free,
   reading the committed datasets in `results/`.
+- `viewer3d.html` is an experimental WebGPU 3D rendering of the same
+  engagement: terrain in relief, drones at true altitude, terrain-draped
+  LOBs and error ellipses, and a GPU-computed detectability overlay that
+  makes the RF propagation model visible. It contains no simulation code —
+  it loads the engine from `index.html` at runtime, so the engagement it
+  shows for a seed is tick-for-tick the one the 2D sim plays (verified
+  against fpv-sim-mcp's golden fixtures). Needs a WebGPU-capable browser
+  and HTTP serving (it fetches `index.html`, so `file://` won't work).
 - No build, no dependencies, no network calls. It runs from a `file://` URL.
 
 ## License
