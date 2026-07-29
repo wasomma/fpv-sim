@@ -212,7 +212,6 @@
           </select>
           <div class="ctl-lbl">Scene Layers</div>
           <div class="toggles">
-            <label><input type="checkbox" id="tglRF"> RF Coverage</label>
             <label><input type="checkbox" id="tglLOB" checked> LOBs</label>
             <label><input type="checkbox" id="tglELL" checked> Ellipses</label>
             <label><input type="checkbox" id="tglPATH" checked> Flight Paths</label>
@@ -938,14 +937,10 @@ function buildDynamic(alpha){
       drapeInto(dynLines, b.x, b.y + b.h, b.x, b.y, 3, ...col, a, true);
     }
 
-    // RF max-range rings.
-    if ($("tglRF").checked){
-      for (const nd of T.nodes){
-        drapeCircle(dynLines, nd.x, nd.y, C.CUAS.MAX_RANGE_M, 4, ...colRF, 0.15, true);
-      }
-    }
+    // DF nodes: tripod cone + mast. (No max-range rings here: the
+    // Detectability Field overlay is the RF-coverage picture in 3D —
+    // propagation-aware, unlike a flat ring.)
 
-    // DF nodes: tripod cone + mast.
     for (const nd of T.nodes){
       const e = Math.max(E.elevAt(nd.x, nd.y), 0);
       coneInto(dynSolid, nd.x, e, nd.y, 13, 26, 6, [...col, 1]);
