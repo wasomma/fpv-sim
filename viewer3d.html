@@ -668,6 +668,7 @@ async function initGPU(canvas){
     msaa: null, depthTex: null, w: 0, h: 0,
     terrVB: null, terrIB: null, terrIdxCount: 0,
     treeVB: null, treeCount: 0,
+    stTrnVB: null, waterVerts: 0, stTrnVerts: 0,
     canopyTex: null, rfTex: null, elevSB: null, canSB: null, rfUni: null,
   };
   g.lineBG = device.createBindGroup({ layout: linePipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: uni } }] });
@@ -833,6 +834,55 @@ function buildStatic(){
   });
   device.queue.writeBuffer(gpu.treeVB, 0, tb.a.subarray(0, tb.n));
   gpu.treeCount = tb.n / 10;
+
+  // Static translucent geometry: the water plane, then the canopy shell —
+  // a translucent surface at canopy height (CUAS.CANOPY_HGT_M above the
+  // ground, the same height the RF model uses for vegetation masking),
+  // with opacity following the canopy density field. Clearings and the
+  // trail read as holes; a drone in TERMINAL visibly drops beneath it.
+  // Water is emitted first so it always draws, canopy after so the draw
+  // count can stop at waterVerts when the CANOPY toggle is off.
+  const sb = new DynBuf(1 << 20);
+  {
+    const wc = [0.10, 0.28, 0.40, 0.42], wy = 0.6;
+    triInto(sb, 0, wy, 0, W, wy, 0, W, wy, -W, wc);
+    triInto(sb, 0, wy, 0, W, wy, -W, 0, wy, -W, wc);
+  }
+  gpu.waterVerts = sb.n / 10;
+  {
+    const H = E.CONFIG.CUAS.CANOPY_HGT_M;
+    const step = 2;                       // 40 m shell cells: clearings still resolve
+    const cellW = W / (R - 1) * step;
+    // Lighter than the ground beneath: sunlit crowns over shaded floor is
+    // the visual cue that this layer sits above the terrain.
+    const green = [0.11, 0.29, 0.16];
+    const aOf = c => clamp((c - 0.12) * 1.25, 0, 0.7);
+    for (let gy = 0; gy + step < R; gy += step){
+      for (let gx = 0; gx + step < R; gx += step){
+        const c00 = can[gy * R + gx],           c10 = can[gy * R + gx + step];
+        const c01 = can[(gy + step) * R + gx],  c11 = can[(gy + step) * R + gx + step];
+        if (Math.max(c00, c10, c01, c11) < 0.15) continue;
+        const px = g => g / (R - 1) * W;
+        const x0 = px(gx), x1 = px(gx + step);
+        const z0 = -px(gy), z1 = -px(gy + step);
+        const y00 = elev[gy * R + gx] + H,          y10 = elev[gy * R + gx + step] + H;
+        const y01 = elev[(gy + step) * R + gx] + H, y11 = elev[(gy + step) * R + gx + step] + H;
+        // Face normal from the cell's elevation slope (flat-shaded shell).
+        const dedx = (y10 - y00) / cellW, dedz = (y01 - y00) / cellW;
+        let nx = -dedx, ny = 1, nz = dedz;
+        const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+        const v = (x, y, z, c) => sb.push(x, y, z, nx, ny, nz, green[0], green[1], green[2], aOf(c));
+        v(x0, y00, z0, c00); v(x0, y01, z1, c01); v(x1, y10, z0, c10);
+        v(x1, y10, z0, c10); v(x0, y01, z1, c01); v(x1, y11, z1, c11);
+      }
+    }
+  }
+  gpu.stTrnVerts = sb.n / 10;
+  if (gpu.stTrnVB) gpu.stTrnVB.destroy();
+  gpu.stTrnVB = device.createBuffer({
+    size: Math.max(sb.n * 4, 4), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(gpu.stTrnVB, 0, sb.a.subarray(0, sb.n));
 }
 
 /* --------------------- geometry emit helpers ------------------------- */
@@ -917,12 +967,7 @@ function buildDynamic(alpha){
   const st = E.state, C = E.CONFIG, W = E.world.size;
   const colRF = hexRGB(C.COLORS.RF);
 
-  // Water plane (translucent, over the below-sea-level terrain).
-  {
-    const c = [0.10, 0.28, 0.40, 0.42], y = 0.6;
-    triInto(dynTrn, 0, y, 0, W, y, 0, W, y, -W, c);
-    triInto(dynTrn, 0, y, 0, W, y, -W, 0, y, -W, c);
-  }
+  // (Water and the canopy shell are static per seed — see buildStatic.)
 
   for (const side of ["BLUFOR", "OPFOR"]){
     const T = st.teams[side];
@@ -1135,9 +1180,14 @@ function render(alpha){
     pass.setVertexBuffer(0, gpu.solidVB);
     pass.draw(dynSolid.n / 10);
   }
+  pass.setPipeline(gpu.solidTrn);
+  pass.setBindGroup(0, gpu.solidBGT);
+  if (gpu.stTrnVerts){
+    // Water always; the canopy shell only when the CANOPY toggle is on.
+    pass.setVertexBuffer(0, gpu.stTrnVB);
+    pass.draw($("tglCAN").checked ? gpu.stTrnVerts : gpu.waterVerts);
+  }
   if (dynTrn.n){
-    pass.setPipeline(gpu.solidTrn);
-    pass.setBindGroup(0, gpu.solidBGT);
     pass.setVertexBuffer(0, gpu.trnVB);
     pass.draw(dynTrn.n / 10);
   }
