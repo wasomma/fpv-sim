@@ -33,6 +33,14 @@ generated FROM this file. Consequences:
   serves it at the root URL). Supports `?seed=<n>&play=1` deep links.
 - `dashboard.html` — companion results viewer, equally single-file; reads
   `results/index.json` (manifest) and the datasets it lists.
+- `viewer3d.html` — experimental WebGPU 3D viewer. Contains NO simulation
+  code: it fetches `index.html` at runtime and executes its script block
+  against an inert DOM proxy (same harness as fpv-sim-mcp's fixture
+  generator), then drives the real `resetSim()`/`stepSim()`. Renders
+  engine state read-only — it must never call the engine RNG or add
+  draws. Test hook: `window.__test.runHeadless(seed)` reproduces the
+  golden-fixture numbers in-browser; `?offscreen=1` renders to an
+  offscreen target for headless verification.
 - `scripts/monte-carlo-study.mjs` — the canonical study runner (the four
   experiments). `--quick` for a 1/10-scale smoke pass (~4 min); full run
   ~25 min, 22,800 engagements. Writes `results/monte-carlo.json`,

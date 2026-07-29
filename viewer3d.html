@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPV sUAS vs cUAS // 3D Viewer (WebGPU)</title>
+<style>
+  :root{
+    --bg:#0b0e10; --panel:#10161a; --panel2:#0d1216; --border:#1d2930;
+    --text:#c4d0d4; --dim:#6d7f86; --blufor:#57c7ff; --opfor:#ff5d5d;
+    --rf:#ffb454; --ok:#69d18c; --unclass:#2e7d32;
+    --mono:ui-monospace,"Cascadia Mono","JetBrains Mono","SF Mono",Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--mono);
+    display:flex; flex-direction:column; overflow:hidden; font-size:13px;
+  }
+  .banner{
+    background:var(--unclass); color:#eaf5ea; text-align:center;
+    font-size:11px; letter-spacing:.25em; padding:2px 0; flex:0 0 auto;
+    text-transform:uppercase; user-select:none;
+  }
+  header{
+    flex:0 0 auto; display:flex; align-items:center; gap:18px;
+    padding:8px 14px; background:var(--panel); border-bottom:1px solid var(--border);
+  }
+  header .title{font-size:15px; letter-spacing:.12em; white-space:nowrap}
+  header .title b{color:#e8f2f5; font-weight:600}
+  header .title span{color:var(--dim)}
+  header .clock{margin-left:auto; display:flex; align-items:baseline; gap:14px; white-space:nowrap}
+  header .clock #simclock{font-size:16px; color:#e8f2f5; letter-spacing:.08em}
+  header .clock #phase{font-size:11px; color:var(--rf); letter-spacing:.15em}
+  header .brand{
+    font-size:11px; letter-spacing:.35em; color:var(--dim);
+    border-left:1px solid var(--border); padding-left:14px; user-select:none;
+  }
+  header .hdr-link{
+    font-size:11px; letter-spacing:.15em; color:var(--text); text-decoration:none;
+    border:1px solid var(--border); padding:4px 10px; white-space:nowrap;
+  }
+  header .hdr-link:hover{border-color:var(--dim); color:#e8f2f5}
+  main{flex:1 1 auto; display:flex; min-height:0}
+  #stage{flex:1 1 auto; position:relative; min-width:0; background:#060a0c}
+  #gl{position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:grab}
+  #gl.dragging{cursor:grabbing}
+  #labels{position:absolute; inset:0; pointer-events:none; overflow:hidden}
+  #labels .lbl{
+    position:absolute; transform:translate(-50%,-130%); white-space:nowrap;
+    font-size:9px; letter-spacing:.1em; text-shadow:0 1px 3px rgba(0,0,0,.9);
+  }
+  #labels .lbl .tx{color:var(--rf)}
+  #camhint{
+    position:absolute; left:12px; bottom:8px; font-size:9px; letter-spacing:.12em;
+    color:rgba(160,185,195,.38); pointer-events:none; user-select:none;
+  }
+  #aolabel{
+    position:absolute; left:12px; top:8px; font-size:10px; letter-spacing:.12em;
+    color:rgba(200,220,230,.30); pointer-events:none; user-select:none;
+  }
+  #msg{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(6,10,12,.82); z-index:6; text-align:center; padding:20px;
+  }
+  #msg.hidden{display:none}
+  #msg .card{max-width:520px; background:var(--panel); border:1px solid var(--border);
+    border-radius:4px; padding:22px 28px; line-height:1.7}
+  #msg .card h2{font-size:14px; letter-spacing:.2em; margin-bottom:10px; color:#e8f2f5}
+  #msg .card p{font-size:11px; color:var(--dim); letter-spacing:.05em}
+  #msg .card p b{color:var(--text)}
+  #endcard{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(6,10,12,.72); backdrop-filter:blur(2px); z-index:5;
+  }
+  #endcard.hidden{display:none}
+  #endcard .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:4px;
+    padding:26px 40px; text-align:center; box-shadow:0 12px 50px rgba(0,0,0,.6);
+  }
+  #endcard .card h2{font-size:20px; letter-spacing:.2em; margin-bottom:8px; font-weight:600}
+  #endcard .card p{font-size:12px; color:var(--dim); letter-spacing:.08em; margin-bottom:18px}
+  #endcard .card .btns{display:flex; gap:10px; justify-content:center}
+  aside{
+    flex:0 0 340px; display:flex; flex-direction:column; min-height:0;
+    border-left:1px solid var(--border); background:var(--panel2);
+  }
+  aside section{display:flex; flex-direction:column; min-height:0}
+  aside h3{
+    font-size:10px; letter-spacing:.28em; color:var(--dim); font-weight:600;
+    padding:7px 12px; border-bottom:1px solid var(--border); background:var(--panel);
+    text-transform:uppercase; flex:0 0 auto;
+  }
+  button{
+    font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--text);
+    background:#151d22; border:1px solid var(--border); border-radius:3px;
+    padding:10px 14px; cursor:pointer; text-transform:uppercase;
+  }
+  button:hover{border-color:#33454f; color:#e8f2f5}
+  button.active{border-color:var(--rf); color:var(--rf)}
+  button:focus-visible{outline:1px solid var(--rf); outline-offset:1px}
+  #ctrlsec{flex:0 0 auto; border-bottom:1px solid var(--border)}
+  #ctrlBody{padding:12px; display:flex; flex-direction:column; gap:10px}
+  .ctl-row{display:flex; gap:8px}
+  .ctl-row button{flex:1 1 0; min-width:0}
+  .ctl-lbl{
+    font-size:10px; letter-spacing:.2em; color:var(--dim);
+    text-transform:uppercase; user-select:none; margin-bottom:-4px;
+  }
+  #ctrlBody select{
+    font-family:var(--mono); font-size:12px; letter-spacing:.08em; color:var(--text);
+    background:#151d22; border:1px solid var(--border); border-radius:3px;
+    padding:9px 8px; cursor:pointer; text-transform:uppercase; width:100%;
+  }
+  #ctrlBody select:hover{border-color:#33454f; color:#e8f2f5}
+  .toggles{display:grid; grid-template-columns:1fr 1fr; gap:9px 12px; padding:2px 0}
+  .toggles label{
+    display:flex; align-items:center; gap:7px; font-size:12px; letter-spacing:.08em;
+    color:var(--dim); cursor:pointer; text-transform:uppercase; user-select:none;
+  }
+  .toggles label:hover{color:var(--text)}
+  .toggles input[type=checkbox]{accent-color:var(--rf); width:15px; height:15px; cursor:pointer; flex:none}
+  .seedrow{align-items:center}
+  .seedrow .seed{flex:1 1 auto; font-size:11px; color:var(--dim); letter-spacing:.08em}
+  .seedrow button{flex:0 0 auto}
+  #statsec{flex:0 0 auto; border-bottom:1px solid var(--border)}
+  #cards{padding:10px 12px; display:flex; flex-direction:column; gap:8px}
+  .tcard{border:1px solid; border-radius:3px; padding:8px 10px; font-size:11px; line-height:1.7;
+    background:rgba(13,18,22,.82)}
+  .tcard .hd{display:flex; justify-content:space-between; letter-spacing:.1em; margin-bottom:3px}
+  .tcard .row{display:flex; justify-content:space-between}
+  .tcard .row .k{color:var(--dim)}
+  #logsec{flex:1 1 auto}
+  #log{flex:1 1 auto; overflow-y:auto; padding:6px 0; scrollbar-width:thin}
+  #log .row{display:flex; gap:8px; padding:2px 12px; font-size:11px; line-height:1.5; align-items:baseline}
+  #log .row:hover{background:rgba(255,255,255,.03)}
+  #log .lt{color:var(--dim); flex:0 0 58px}
+  #log .chip{flex:0 0 52px; font-size:9px; letter-spacing:.1em; text-align:center; border:1px solid; border-radius:2px; padding:0 2px}
+  #log .chip.B{color:var(--blufor); border-color:rgba(87,199,255,.45)}
+  #log .chip.O{color:var(--opfor); border-color:rgba(255,93,93,.45)}
+  #log .chip.S{color:var(--dim); border-color:var(--border)}
+  #log .tx{flex:1}
+  @media (max-width: 920px){ aside{flex:0 0 300px} }
+  @media (max-width: 700px){
+    main{flex-direction:column}
+    #stage{flex:1 1 55%}
+    aside{flex:1 1 45%; border-left:none; border-top:1px solid var(--border); overflow-y:auto}
+    #ctrlsec,#statsec,#logsec{flex:0 0 auto}
+    #log{max-height:180px}
+  }
+  @media (prefers-reduced-motion: reduce){ #endcard{backdrop-filter:none} }
+</style>
+</head>
+<body>
+  <div class="banner">Unclassified // Notional Demonstration</div>
+  <header>
+    <div class="title"><b>FPV sUAS vs cUAS</b> <span>// 3D VIEWER // WEBGPU</span></div>
+    <div class="clock">
+      <span id="simclock">T+00:00</span>
+      <span id="phase">PHASE I // EMPLACEMENT</span>
+    </div>
+    <a class="hdr-link" href="index.html" title="Original 2D simulation">2D SIM</a>
+    <a class="hdr-link" href="dashboard.html" title="Monte Carlo results dashboard">RESULTS</a>
+    <div class="brand">ONEARC</div>
+  </header>
+  <main>
+    <div id="stage">
+      <canvas id="gl"></canvas>
+      <div id="labels"></div>
+      <div id="aolabel">AO KATANA (NOTIONAL) // 3D // NORTH AWAY AT CAM RESET</div>
+      <div id="camhint">DRAG ORBIT &nbsp;//&nbsp; SHIFT-DRAG PAN &nbsp;//&nbsp; WHEEL ZOOM</div>
+      <div id="endcard" class="hidden">
+        <div class="card">
+          <h2 id="endTitle">ENDEX</h2>
+          <p id="endSub"></p>
+          <div class="btns">
+            <button id="btnReplay2">Replay</button>
+            <button id="btnNewSeed2">Random</button>
+          </div>
+        </div>
+      </div>
+      <div id="msg">
+        <div class="card">
+          <h2 id="msgTitle">LOADING ENGINE</h2>
+          <p id="msgBody">Fetching index.html and starting the simulation core&hellip;</p>
+        </div>
+      </div>
+    </div>
+    <aside>
+      <section id="ctrlsec">
+        <h3>Controls</h3>
+        <div id="ctrlBody">
+          <div class="ctl-row">
+            <button id="btnPlay">Play</button>
+            <button id="btnReset">Reset</button>
+            <button id="btnCam" title="Reset camera">Cam</button>
+          </div>
+          <div class="ctl-row" id="speedGrp">
+            <button data-spd="1">1x</button>
+            <button data-spd="2">2x</button>
+            <button data-spd="4" class="active">4x</button>
+            <button data-spd="8">8x</button>
+          </div>
+          <div class="ctl-lbl"><label for="scenario" style="cursor:pointer">Scenario</label></div>
+          <select id="scenario" title="Featured engagements">
+            <option value="20260719">Standard Engagement (BLUFOR)</option>
+            <option value="66">Discipline Wins, Fast (BLUFOR)</option>
+            <option value="57">Deliberate Fix (BLUFOR)</option>
+            <option value="41">OPFOR Prevails</option>
+            <option value="59">Close Race (OPFOR)</option>
+            <option value="custom" hidden>Custom Seed</option>
+          </select>
+          <div class="ctl-lbl">Scene Layers</div>
+          <div class="toggles">
+            <label><input type="checkbox" id="tglRF"> RF Coverage</label>
+            <label><input type="checkbox" id="tglLOB" checked> LOBs</label>
+            <label><input type="checkbox" id="tglELL" checked> Ellipses</label>
+            <label><input type="checkbox" id="tglPATH" checked> Flight Paths</label>
+            <label><input type="checkbox" id="tglCAN" checked> Canopy</label>
+            <label><input type="checkbox" id="tglTREE" checked> Trees</label>
+            <label><input type="checkbox" id="tglGRID" checked> Grid</label>
+            <label><input type="checkbox" id="tglLBL" checked> Labels</label>
+          </div>
+          <div class="ctl-lbl"><label for="detsel" style="cursor:pointer">Detectability Field (GPU)</label></div>
+          <select id="detsel" title="Per-scan probability an uplink transmitting from each map point is intercepted by the opposing DF nodes">
+            <option value="0">Off</option>
+            <option value="1">vs BLUFOR emitter (OPFOR ears)</option>
+            <option value="2">vs OPFOR emitter (BLUFOR ears)</option>
+          </select>
+          <div class="ctl-row seedrow">
+            <span class="seed">SEED <span id="seedVal"></span></span>
+            <button id="btnNewSeed">Random</button>
+          </div>
+        </div>
+      </section>
+      <section id="statsec">
+        <h3>Team Status</h3>
+        <div id="cards">
+          <div class="tcard" id="cardB"></div>
+          <div class="tcard" id="cardO"></div>
+        </div>
+      </section>
+      <section id="logsec">
+        <h3>Event Log</h3>
+        <div id="log"></div>
+      </section>
+    </aside>
+  </main>
+  <div class="banner">Unclassified // Notional Demonstration</div>
+
+<script type="module">
+"use strict";
+/* =====================================================================
+   FPV sUAS vs cUAS — EXPERIMENTAL 3D VIEWER (WebGPU)
+
+   A second lens on the SAME engine. This page does not reimplement any
+   simulation code: it fetches index.html at runtime, executes its
+   <script> block against an inert DOM proxy (the identical technique
+   fpv-sim-mcp's golden-fixture generator uses in Node), and drives the
+   real resetSim()/stepSim() directly. Same seed, same engagement,
+   tick for tick, as the 2D sim — the renderer is a read-only consumer
+   of engine state and never touches the engine RNG.
+
+   Requires WebGPU (Chrome/Edge 113+, recent Safari/Firefox) and must be
+   served over HTTP(S) — the runtime fetch of index.html does not work
+   from a file:// URL. Notional data only.
+   ===================================================================== */
+
+const $ = id => document.getElementById(id);
+const FEATURED = ["20260719", "66", "57", "41", "59"];
+
+/* ------------------- engine loader (inert-DOM harness) --------------- */
+// Universal inert proxy: callable, any property access returns itself,
+// any set is swallowed, coerces to 0 / "". Mirrors fpv-sim-mcp's
+// scripts/generate-goldens.mjs so the untouched engine source loads with
+// its rendering/UI side effects reduced to no-ops.
+function makeInert(){
+  const fn = function(){ return proxy; };
+  const proxy = new Proxy(fn, {
+    get(_t, prop){
+      if (prop === Symbol.toPrimitive) return () => 0;
+      if (prop === "toString") return () => "";
+      return proxy;
+    },
+    set(){ return true; },
+    apply(){ return proxy; },
+  });
+  return proxy;
+}
+
+async function loadEngine(){
+  const res = await fetch("index.html", { cache: "no-store" });
+  if (!res.ok) throw new Error("fetch index.html failed: HTTP " + res.status);
+  const html = await res.text();
+  const m = html.match(/<script>([\s\S]*)<\/script>/);
+  if (!m) throw new Error("could not locate <script> block in index.html");
+  // Appended after the original source: replace the DOM-only logger with a
+  // collector (side-effect-equivalent for the simulation) and export the
+  // engine surface. Runs inside the same function scope as the engine.
+  const TAIL = `
+;var __events = [];
+addLog = function(side, text){ __events.push({ t: state.t, side: side, text: text }); };
+return {
+  CONFIG: CONFIG, state: state, world: world,
+  resetSim: resetSim, stepSim: stepSim,
+  elevAt: elevAt, canopyAt: canopyAt, pathAtten: pathAtten,
+  mulberry32: mulberry32, dist: dist, brgTo: brgTo,
+  fmtT: fmtT, gridRef: gridRef, r2d: r2d,
+  events: __events
+};
+`;
+  const inert = makeInert();
+  const factory = new Function(
+    "document", "window", "getComputedStyle", "requestAnimationFrame",
+    "performance", "location",
+    m[1] + TAIL
+  );
+  // location is stubbed so the engine's own deep-link init stays inert;
+  // this page handles ?seed=&play=1 itself.
+  return factory(inert, inert, () => inert, () => 0, { now: () => 0 }, { search: "" });
+}
+
+/* --------------------------- small math ------------------------------ */
+function persp(fovy, aspect, near, far){
+  const f = 1 / Math.tan(fovy / 2);
+  const o = new Float32Array(16);
+  o[0] = f / aspect; o[5] = f;
+  o[10] = far / (near - far); o[11] = -1;
+  o[14] = near * far / (near - far);
+  return o;
+}
+function lookAt(eye, c, up){
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const z = norm(sub(eye, c));
+  const x = norm(cross(up, z));
+  const y = cross(z, x);
+  return new Float32Array([
+    x[0], y[0], z[0], 0,
+    x[1], y[1], z[1], 0,
+    x[2], y[2], z[2], 0,
+    -dot(x, eye), -dot(y, eye), -dot(z, eye), 1,
+  ]);
+}
+function mat4Mul(a, b){
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++){
+    o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+  }
+  return o;
+}
+function hexRGB(hex){
+  return [parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255];
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ------------------------------ WGSL --------------------------------- */
+// Shared uniform block (identical struct in all render shaders so they can
+// bind the same buffer): mvp, params, sun direction, camera position.
+const WGSL_COMMON = `
+struct U {
+  mvp : mat4x4f,
+  params : vec4f,   // x canopyOn, y overlayMode, z worldSize, w gridOn
+  sun : vec4f,
+  cam : vec4f,
+};
+`;
+const WGSL_TERRAIN = WGSL_COMMON + `
+@group(0) @binding(0) var<uniform> u : U;
+@group(0) @binding(1) var samp : sampler;
+@group(0) @binding(2) var canopyTex : texture_2d<f32>;
+@group(0) @binding(3) var rfTex : texture_2d<f32>;
+
+struct VOut {
+  @builtin(position) pos : vec4f,
+  @location(0) wp : vec3f,
+  @location(1) nrm : vec3f,
+};
+
+@vertex fn vs(@location(0) p : vec3f, @location(1) n : vec3f) -> VOut {
+  var o : VOut;
+  o.pos = u.mvp * vec4f(p, 1.0);
+  o.wp = p;
+  o.nrm = n;
+  return o;
+}
+
+@fragment fn fs(v : VOut) -> @location(0) vec4f {
+  let W = u.params.z;
+  let yw = -v.wp.z;
+  let uv = vec2f(v.wp.x / W, yw / W);
+  let can = textureSample(canopyTex, samp, uv).r;
+  let rf = textureSample(rfTex, samp, uv);
+  let e = v.wp.y;
+  var col : vec3f;
+  if (e < 0.5) {
+    let d = clamp(-e / 45.0, 0.0, 1.0);
+    col = vec3f(10.0 + 6.0 * (1.0 - d), 22.0 + 12.0 * (1.0 - d), 34.0 + 14.0 * (1.0 - d)) / 255.0;
+  } else {
+    let h = clamp(e / 240.0, 0.0, 1.0);
+    col = mix(vec3f(18.0, 30.0, 22.0), vec3f(46.0, 54.0, 38.0), h) / 255.0;
+    if (u.params.x > 0.5) {
+      col = mix(col, vec3f(14.0, 40.0, 24.0) / 255.0, clamp(can * 0.65, 0.0, 0.75));
+    }
+  }
+  let n = normalize(v.nrm);
+  let diff = clamp(dot(n, normalize(u.sun.xyz)), 0.0, 1.0);
+  col = col * (0.62 + 0.85 * diff);
+  if (u.params.w > 0.5 && e >= 0.5) {
+    let gx = abs(fract(v.wp.x / 500.0 + 0.5) - 0.5) * 500.0;
+    let gy = abs(fract(yw / 500.0 + 0.5) - 0.5) * 500.0;
+    let g = min(gx, gy);
+    if (g < 3.0) { col = mix(col, vec3f(0.78, 0.86, 0.90), 0.06 * (1.0 - g / 3.0) + 0.015); }
+  }
+  let mode = i32(u.params.y);
+  if (mode > 0) {
+    var p = rf.g;
+    if (mode == 1) { p = rf.r; }
+    let a = clamp(p * 1.4, 0.0, 0.72);
+    col = mix(col, vec3f(1.0, 0.70, 0.33), a * 0.85);
+  }
+  let fd = length(v.wp - u.cam.xyz);
+  let fog = 1.0 - exp(-fd * 0.00010);
+  col = mix(col, vec3f(0.023, 0.039, 0.047), fog * 0.40);
+  return vec4f(col, 1.0);
+}
+`;
+const WGSL_LINES = WGSL_COMMON + `
+@group(0) @binding(0) var<uniform> u : U;
+struct VOut { @builtin(position) pos : vec4f, @location(0) col : vec4f };
+@vertex fn vs(@location(0) p : vec3f, @location(1) c : vec4f) -> VOut {
+  var o : VOut;
+  o.pos = u.mvp * vec4f(p, 1.0);
+  o.col = c;
+  return o;
+}
+@fragment fn fs(v : VOut) -> @location(0) vec4f { return v.col; }
+`;
+const WGSL_SOLID = WGSL_COMMON + `
+@group(0) @binding(0) var<uniform> u : U;
+struct VOut {
+  @builtin(position) pos : vec4f,
+  @location(0) wp : vec3f,
+  @location(1) nrm : vec3f,
+  @location(2) col : vec4f,
+};
+@vertex fn vs(@location(0) p : vec3f, @location(1) n : vec3f, @location(2) c : vec4f) -> VOut {
+  var o : VOut;
+  o.pos = u.mvp * vec4f(p, 1.0);
+  o.wp = p; o.nrm = n; o.col = c;
+  return o;
+}
+@fragment fn fs(v : VOut) -> @location(0) vec4f {
+  let n = normalize(v.nrm);
+  let lam = 0.40 + 0.60 * abs(dot(n, normalize(u.sun.xyz)));
+  var col = v.col.rgb * lam;
+  let fd = length(v.wp - u.cam.xyz);
+  let fog = 1.0 - exp(-fd * 0.00010);
+  col = mix(col, vec3f(0.023, 0.039, 0.047), fog * 0.45);
+  return vec4f(col, v.col.a);
+}
+`;
+// RF detectability field: for each map texel, the per-scan probability that
+// a C2 uplink transmitting from that point (antenna 2.5 m AGL, the same
+// height doScans() uses for a GCS) is intercepted by the opposing side's
+// two DF nodes (sensors 4 m AGL). Straight WGSL port of pathAtten() and the
+// doScans() uplink detection formula; combined as 1-(1-p1)(1-p2).
+const WGSL_RFFIELD = `
+struct CU {
+  info : vec4f,  // worldSize, canopyHgt, maxRange, pDetectUL
+  emit : vec4f,  // emitterAgl, sensorAgl, texSize, gridRes
+  bn0 : vec4f, bn1 : vec4f,   // BLUFOR DF nodes (listen vs OPFOR emitter)
+  on0 : vec4f, on1 : vec4f,   // OPFOR DF nodes (listen vs BLUFOR emitter)
+};
+@group(0) @binding(0) var<uniform> cu : CU;
+@group(0) @binding(1) var<storage, read> elevG : array<f32>;
+@group(0) @binding(2) var<storage, read> canG : array<f32>;
+@group(0) @binding(3) var outTex : texture_storage_2d<rgba8unorm, write>;
+
+fn gval(idx : i32, useCan : bool) -> f32 {
+  if (useCan) { return canG[idx]; }
+  return elevG[idx];
+}
+fn sampleG(x : f32, y : f32, useCan : bool) -> f32 {
+  let R = cu.emit.w;
+  let W = cu.info.x;
+  let gx = clamp(x / W * (R - 1.0), 0.0, R - 1.0001);
+  let gy = clamp(y / W * (R - 1.0), 0.0, R - 1.0001);
+  let x0 = floor(gx); let y0 = floor(gy);
+  let fx = gx - x0; let fy = gy - y0;
+  let Ri = i32(R);
+  let i = i32(y0) * Ri + i32(x0);
+  let v00 = gval(i, useCan); let v10 = gval(i + 1, useCan);
+  let v01 = gval(i + Ri, useCan); let v11 = gval(i + Ri + 1, useCan);
+  return mix(mix(v00, v10, fx), mix(v01, v11, fx), fy);
+}
+fn atten(ax : f32, ay : f32, aAgl : f32, bx : f32, by : f32, bAgl : f32) -> f32 {
+  let aZ = max(sampleG(ax, ay, false), 0.0) + aAgl;
+  let bZ = max(sampleG(bx, by, false), 0.0) + bAgl;
+  var block = 0.0; var veg = 0.0;
+  for (var i = 1; i < 14; i++) {
+    let t = f32(i) / 14.0;
+    let x = mix(ax, bx, t); let y = mix(ay, by, t);
+    let g = sampleG(x, y, false);
+    let losZ = mix(aZ, bZ, t);
+    if (g > losZ + 2.0) { block += 1.0; }
+    else if (losZ < g + cu.info.y) { veg += sampleG(x, y, true); }
+  }
+  return min(6.0, (block / 14.0) * 4.2 + veg * 0.14);
+}
+fn detP(sx : f32, sy : f32, ex : f32, ey : f32) -> f32 {
+  let r = distance(vec2f(sx, sy), vec2f(ex, ey));
+  if (r > cu.info.z) { return 0.0; }
+  let att = atten(sx, sy, cu.emit.y, ex, ey, cu.emit.x);
+  return cu.info.w * clamp(1.15 - r / cu.info.z, 0.0, 1.0) * exp(-att);
+}
+@compute @workgroup_size(8, 8)
+fn cs(@builtin(global_invocation_id) gid : vec3u) {
+  let N = i32(cu.emit.z);
+  if (i32(gid.x) >= N || i32(gid.y) >= N) { return; }
+  let W = cu.info.x;
+  let x = (f32(gid.x) + 0.5) / f32(N) * W;
+  let y = (f32(gid.y) + 0.5) / f32(N) * W;
+  let pB = 1.0 - (1.0 - detP(cu.on0.x, cu.on0.y, x, y)) * (1.0 - detP(cu.on1.x, cu.on1.y, x, y));
+  let pO = 1.0 - (1.0 - detP(cu.bn0.x, cu.bn0.y, x, y)) * (1.0 - detP(cu.bn1.x, cu.bn1.y, x, y));
+  textureStore(outTex, vec2i(i32(gid.x), i32(gid.y)), vec4f(pB, pO, 0.0, 1.0));
+}
+`;
+
+/* --------------------------- dynamic buffers ------------------------- */
+class DynBuf {
+  constructor(cap){ this.a = new Float32Array(cap); this.n = 0; }
+  reset(){ this.n = 0; }
+  need(k){
+    if (this.n + k > this.a.length){
+      const b = new Float32Array(Math.max(this.a.length * 2, this.n + k));
+      b.set(this.a.subarray(0, this.n)); this.a = b;
+    }
+  }
+  push(...v){ this.need(v.length); for (const x of v) this.a[this.n++] = x; }
+}
+
+/* ============================== MAIN ================================= */
+let E = null;                 // engine exports
+let gpu = null;               // WebGPU bundle, null if unavailable
+let playing = false, speed = 4, acc = 0, lastTs = 0;
+let endShownLocal = false;
+let logCount = 0;
+const RFTEX_N = 256;
+const trailsV = { BLUFOR: [], OPFOR: [] };  // viewer-side trails with altitude
+const trailAccV = { BLUFOR: 0, OPFOR: 0 };
+const prevD = { BLUFOR: null, OPFOR: null }; // previous-tick drone snapshot for interp
+const cam = { yaw: 0.62, pitch: 0.88, dist: 4600, tx: 2000, ty: 40, tz: -2000 };
+const CAM0 = { ...cam };
+let VP = null;  // current view-projection matrix (for labels)
+
+function fatal(title, body){
+  $("msgTitle").textContent = title;
+  $("msgBody").innerHTML = body;
+  $("msg").classList.remove("hidden");
+}
+
+/* --------------------------- WebGPU setup ---------------------------- */
+async function initGPU(canvas){
+  if (!navigator.gpu) return null;
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) return null;
+  const device = await adapter.requestDevice();
+  device.addEventListener("uncapturederror", ev => console.error("WebGPU:", ev.error.message));
+  device.lost.then(info => {
+    console.error("WebGPU device lost:", info.reason, info.message);
+    window.__gpuLost = info.reason + " " + info.message;
+  });
+  // ?offscreen=1 renders to an offscreen texture instead of the canvas —
+  // for headless verification (some software-GPU environments can render
+  // but crash on canvas presentation). Frames are then only observable
+  // via the __test.snapshot() readback.
+  let offscreen = false;
+  try { offscreen = new URLSearchParams(location.search).get("offscreen") === "1"; } catch {}
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  let ctx = null;
+  if (!offscreen){
+    ctx = canvas.getContext("webgpu");
+    // COPY_SRC lets the frame be read back (debug/verification snapshots).
+    ctx.configure({ device, format, alphaMode: "opaque",
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+  }
+
+  const uni = device.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const blend = {
+    color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
+    alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+  };
+  const depth = w => ({ format: "depth24plus", depthWriteEnabled: w, depthCompare: "less-equal" });
+  const ms = { count: 4 };
+
+  const terrMod = device.createShaderModule({ code: WGSL_TERRAIN });
+  const terrPipe = device.createRenderPipeline({
+    layout: "auto",
+    vertex: { module: terrMod, entryPoint: "vs", buffers: [{
+      arrayStride: 24,
+      attributes: [
+        { shaderLocation: 0, offset: 0, format: "float32x3" },
+        { shaderLocation: 1, offset: 12, format: "float32x3" },
+      ],
+    }] },
+    fragment: { module: terrMod, entryPoint: "fs", targets: [{ format }] },
+    primitive: { topology: "triangle-list", cullMode: "none" },
+    depthStencil: depth(true),
+    multisample: ms,
+  });
+
+  const lineMod = device.createShaderModule({ code: WGSL_LINES });
+  const linePipe = device.createRenderPipeline({
+    layout: "auto",
+    vertex: { module: lineMod, entryPoint: "vs", buffers: [{
+      arrayStride: 28,
+      attributes: [
+        { shaderLocation: 0, offset: 0, format: "float32x3" },
+        { shaderLocation: 1, offset: 12, format: "float32x4" },
+      ],
+    }] },
+    fragment: { module: lineMod, entryPoint: "fs", targets: [{ format, blend }] },
+    primitive: { topology: "line-list" },
+    depthStencil: depth(false),
+    multisample: ms,
+  });
+
+  const solidMod = device.createShaderModule({ code: WGSL_SOLID });
+  const solidLayout = [{
+    arrayStride: 40,
+    attributes: [
+      { shaderLocation: 0, offset: 0, format: "float32x3" },
+      { shaderLocation: 1, offset: 12, format: "float32x3" },
+      { shaderLocation: 2, offset: 24, format: "float32x4" },
+    ],
+  }];
+  const solidOpq = device.createRenderPipeline({
+    layout: "auto",
+    vertex: { module: solidMod, entryPoint: "vs", buffers: solidLayout },
+    fragment: { module: solidMod, entryPoint: "fs", targets: [{ format }] },
+    primitive: { topology: "triangle-list", cullMode: "none" },
+    depthStencil: depth(true),
+    multisample: ms,
+  });
+  const solidTrn = device.createRenderPipeline({
+    layout: "auto",
+    vertex: { module: solidMod, entryPoint: "vs", buffers: solidLayout },
+    fragment: { module: solidMod, entryPoint: "fs", targets: [{ format, blend }] },
+    primitive: { topology: "triangle-list", cullMode: "none" },
+    depthStencil: depth(false),
+    multisample: ms,
+  });
+
+  const rfMod = device.createShaderModule({ code: WGSL_RFFIELD });
+  const rfPipe = device.createComputePipeline({ layout: "auto", compute: { module: rfMod, entryPoint: "cs" } });
+
+  const sampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
+
+  // Dynamic geometry GPU buffers (grow-once allocations, rewritten per frame).
+  const mkVB = size => device.createBuffer({ size, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  const g = {
+    device, ctx, offscreen, offTex: null, format, uni, sampler,
+    terrPipe, linePipe, solidOpq, solidTrn, rfPipe,
+    lineVB: mkVB(4 << 20), solidVB: mkVB(2 << 20), trnVB: mkVB(1 << 20),
+    lineBG: null, solidBGO: null, solidBGT: null, terrBG: null,
+    msaa: null, depthTex: null, w: 0, h: 0,
+    terrVB: null, terrIB: null, terrIdxCount: 0,
+    treeVB: null, treeCount: 0,
+    canopyTex: null, rfTex: null, elevSB: null, canSB: null, rfUni: null,
+  };
+  g.lineBG = device.createBindGroup({ layout: linePipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: uni } }] });
+  g.solidBGO = device.createBindGroup({ layout: solidOpq.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: uni } }] });
+  g.solidBGT = device.createBindGroup({ layout: solidTrn.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: uni } }] });
+  return g;
+}
+
+function resizeGPU(){
+  if (!gpu) return;
+  const canvas = $("gl");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(2, Math.floor(canvas.clientWidth * dpr));
+  const h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
+  if (w === gpu.w && h === gpu.h) return;
+  canvas.width = w; canvas.height = h;
+  gpu.w = w; gpu.h = h;
+  if (gpu.msaa) gpu.msaa.destroy();
+  if (gpu.depthTex) gpu.depthTex.destroy();
+  gpu.msaa = gpu.device.createTexture({
+    size: [w, h], sampleCount: 4, format: gpu.format, usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  gpu.depthTex = gpu.device.createTexture({
+    size: [w, h], sampleCount: 4, format: "depth24plus", usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  if (gpu.offscreen){
+    if (gpu.offTex) gpu.offTex.destroy();
+    gpu.offTex = gpu.device.createTexture({
+      size: [w, h], format: gpu.format,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+    });
+  }
+}
+
+/* -------------------- per-seed static scene builds ------------------- */
+function buildStatic(){
+  if (!gpu) return;
+  const { device } = gpu;
+  const W = E.world.size, R = E.world.res;
+  const elev = E.world.elevG, can = E.world.canG;
+  const cell = W / (R - 1);
+
+  // Terrain mesh: one vertex per grid sample, position + normal.
+  const verts = new Float32Array(R * R * 6);
+  for (let gy = 0; gy < R; gy++){
+    for (let gx = 0; gx < R; gx++){
+      const i = gy * R + gx;
+      const x = gx / (R - 1) * W, yw = gy / (R - 1) * W;
+      const e = elev[i];
+      const eL = elev[gy * R + Math.max(gx - 1, 0)], eR = elev[gy * R + Math.min(gx + 1, R - 1)];
+      const eD = elev[Math.max(gy - 1, 0) * R + gx], eU = elev[Math.min(gy + 1, R - 1) * R + gx];
+      const dedx = (eR - eL) / (2 * cell), dedy = (eU - eD) / (2 * cell);
+      let nx = -dedx, ny = 1, nz = dedy;  // render z = -yw
+      const nl = Math.hypot(nx, ny, nz);
+      const o = i * 6;
+      verts[o] = x; verts[o + 1] = e; verts[o + 2] = -yw;
+      verts[o + 3] = nx / nl; verts[o + 4] = ny / nl; verts[o + 5] = nz / nl;
+    }
+  }
+  const idx = new Uint32Array((R - 1) * (R - 1) * 6);
+  let k = 0;
+  for (let gy = 0; gy < R - 1; gy++){
+    for (let gx = 0; gx < R - 1; gx++){
+      const a = gy * R + gx, b = a + 1, c = a + R, d = c + 1;
+      idx[k++] = a; idx[k++] = c; idx[k++] = b;
+      idx[k++] = b; idx[k++] = c; idx[k++] = d;
+    }
+  }
+  if (gpu.terrVB) gpu.terrVB.destroy();
+  if (gpu.terrIB) gpu.terrIB.destroy();
+  gpu.terrVB = device.createBuffer({ size: verts.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  gpu.terrIB = device.createBuffer({ size: idx.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(gpu.terrVB, 0, verts);
+  device.queue.writeBuffer(gpu.terrIB, 0, idx);
+  gpu.terrIdxCount = idx.length;
+
+  // Canopy texture (r8unorm, filterable) for the terrain shader.
+  const canBytes = new Uint8Array(R * R);
+  for (let i = 0; i < R * R; i++) canBytes[i] = Math.round(clamp(can[i], 0, 1) * 255);
+  if (gpu.canopyTex) gpu.canopyTex.destroy();
+  gpu.canopyTex = device.createTexture({
+    size: [R, R], format: "r8unorm",
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture({ texture: gpu.canopyTex }, canBytes, { bytesPerRow: R }, { width: R, height: R });
+
+  // Detectability field: elevation/canopy as storage buffers, computed once
+  // per seed into an rgba8 texture (r = vs BLUFOR emitter, g = vs OPFOR).
+  if (gpu.elevSB) gpu.elevSB.destroy();
+  if (gpu.canSB) gpu.canSB.destroy();
+  if (gpu.rfTex) gpu.rfTex.destroy();
+  if (gpu.rfUni) gpu.rfUni.destroy();
+  gpu.elevSB = device.createBuffer({ size: elev.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  gpu.canSB = device.createBuffer({ size: can.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(gpu.elevSB, 0, elev);
+  device.queue.writeBuffer(gpu.canSB, 0, can);
+  gpu.rfTex = device.createTexture({
+    size: [RFTEX_N, RFTEX_N], format: "rgba8unorm",
+    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+  });
+  const B = E.state.teams.BLUFOR, O = E.state.teams.OPFOR;
+  const cu = new Float32Array([
+    W, E.CONFIG.CUAS.CANOPY_HGT_M, E.CONFIG.CUAS.MAX_RANGE_M, E.CONFIG.CUAS.P_DETECT_UL,
+    2.5, 4, RFTEX_N, R,
+    B.nodes[0].x, B.nodes[0].y, 0, 0,
+    B.nodes[1].x, B.nodes[1].y, 0, 0,
+    O.nodes[0].x, O.nodes[0].y, 0, 0,
+    O.nodes[1].x, O.nodes[1].y, 0, 0,
+  ]);
+  gpu.rfUni = device.createBuffer({ size: cu.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(gpu.rfUni, 0, cu);
+  const rfBG = device.createBindGroup({
+    layout: gpu.rfPipe.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: gpu.rfUni } },
+      { binding: 1, resource: { buffer: gpu.elevSB } },
+      { binding: 2, resource: { buffer: gpu.canSB } },
+      { binding: 3, resource: gpu.rfTex.createView() },
+    ],
+  });
+  {
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginComputePass();
+    pass.setPipeline(gpu.rfPipe);
+    pass.setBindGroup(0, rfBG);
+    pass.dispatchWorkgroups(RFTEX_N / 8, RFTEX_N / 8);
+    pass.end();
+    device.queue.submit([enc.finish()]);
+  }
+
+  // Terrain bind group (canopy + rf textures are per-seed resources).
+  gpu.terrBG = device.createBindGroup({
+    layout: gpu.terrPipe.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: gpu.uni } },
+      { binding: 1, resource: gpu.sampler },
+      { binding: 2, resource: gpu.canopyTex.createView() },
+      { binding: 3, resource: gpu.rfTex.createView() },
+    ],
+  });
+
+  // Trees: deterministic decoration from a viewer-derived stream (never the
+  // engine's rng). Cones where canopy is dense; heights track density.
+  const tr = E.mulberry32((E.state.seed ^ 0x7EE51D) >>> 0);
+  const tb = new DynBuf(1 << 20);
+  let placed = 0;
+  for (let i = 0; i < 12000 && placed < 2600; i++){
+    const x = tr() * W, yw = tr() * W;
+    const c = E.canopyAt(x, yw);
+    if (c < 0.35) continue;
+    const e = E.elevAt(x, yw);
+    if (e < 3) continue;
+    placed++;
+    const h = 9 + 10 * c + tr() * 4;
+    const r = 3.5 + 4.5 * c + tr() * 2;
+    const shade = 0.75 + tr() * 0.5;
+    const col = [0.075 * shade, 0.20 * shade, 0.115 * shade, 1];
+    coneInto(tb, x, e, yw, r, h, 5, col);
+  }
+  if (gpu.treeVB) gpu.treeVB.destroy();
+  gpu.treeVB = device.createBuffer({
+    size: Math.max(tb.n * 4, 4), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(gpu.treeVB, 0, tb.a.subarray(0, tb.n));
+  gpu.treeCount = tb.n / 10;
+}
+
+/* --------------------- geometry emit helpers ------------------------- */
+// Render space: x = sim east (m), y = up (m), z = -sim north (m).
+function triInto(buf, ax, ay, az, bx, by, bz, cx, cy, cz, col){
+  let nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+  let ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+  let nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+  const l = Math.hypot(nx, ny, nz) || 1;
+  nx /= l; ny /= l; nz /= l;
+  buf.push(ax, ay, az, nx, ny, nz, col[0], col[1], col[2], col[3]);
+  buf.push(bx, by, bz, nx, ny, nz, col[0], col[1], col[2], col[3]);
+  buf.push(cx, cy, cz, nx, ny, nz, col[0], col[1], col[2], col[3]);
+}
+function coneInto(buf, x, groundY, yw, r, h, segs, col){
+  const z = -yw;
+  for (let s = 0; s < segs; s++){
+    const a0 = s / segs * Math.PI * 2, a1 = (s + 1) / segs * Math.PI * 2;
+    triInto(buf,
+      x, groundY + h, z,
+      x + Math.cos(a0) * r, groundY, z + Math.sin(a0) * r,
+      x + Math.cos(a1) * r, groundY, z + Math.sin(a1) * r, col);
+  }
+}
+function boxInto(buf, x, baseY, yw, sx, sy, sz, col){
+  const z = -yw;
+  const x0 = x - sx / 2, x1 = x + sx / 2, y0 = baseY, y1 = baseY + sy, z0 = z - sz / 2, z1 = z + sz / 2;
+  const q = (a, b, c, d) => { triInto(buf, ...a, ...b, ...c, col); triInto(buf, ...a, ...c, ...d, col); };
+  q([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]);
+  q([x1, y0, z1], [x0, y0, z1], [x0, y1, z1], [x1, y1, z1]);
+  q([x0, y0, z1], [x0, y0, z0], [x0, y1, z0], [x0, y1, z1]);
+  q([x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]);
+  q([x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]);
+}
+function lineInto(buf, ax, ay, az, bx, by, bz, r, g, b, a){
+  buf.push(ax, ay, az, r, g, b, a, bx, by, bz, r, g, b, a);
+}
+// Terrain-draped polyline segment with optional dash skipping.
+function drapeInto(buf, x1, yw1, x2, yw2, lift, r, g, b, a, dash){
+  const len = Math.hypot(x2 - x1, yw2 - yw1);
+  const n = Math.max(1, Math.ceil(len / 70));
+  let px = x1, pyw = yw1, py = Math.max(E.elevAt(x1, yw1), 0) + lift;
+  for (let i = 1; i <= n; i++){
+    const t = i / n;
+    const cx = x1 + (x2 - x1) * t, cyw = yw1 + (yw2 - yw1) * t;
+    const cy = Math.max(E.elevAt(cx, cyw), 0) + lift;
+    if (!dash || i % 2 === 1) lineInto(buf, px, py, -pyw, cx, cy, -cyw, r, g, b, a);
+    px = cx; pyw = cyw; py = cy;
+  }
+}
+function drapeCircle(buf, x, yw, rad, lift, r, g, b, a, dash){
+  const segs = Math.max(24, Math.min(160, Math.round(rad / 40)));
+  let px = x + rad, pyw = yw, py = Math.max(E.elevAt(px, pyw), 0) + lift;
+  for (let i = 1; i <= segs; i++){
+    const t = i / segs * Math.PI * 2;
+    const cx = x + Math.cos(t) * rad, cyw = yw + Math.sin(t) * rad;
+    const cy = Math.max(E.elevAt(cx, cyw), 0) + lift;
+    if (!dash || i % 2 === 1) lineInto(buf, px, py, -pyw, cx, cy, -cyw, r, g, b, a);
+    px = cx; pyw = cyw; py = cy;
+  }
+}
+
+/* -------------------------- frame rendering -------------------------- */
+const dynLines = new DynBuf(1 << 18);
+const dynSolid = new DynBuf(1 << 16);
+const dynTrn = new DynBuf(1 << 15);
+
+function droneRenderPos(side, alpha){
+  const d = E.state.teams[side].drone;
+  const p = prevD[side];
+  if (!p || !d.launched) return { x: d.x, y: d.y, agl: d.agl, hdg: d.hdg };
+  return {
+    x: p.x + (d.x - p.x) * alpha,
+    y: p.y + (d.y - p.y) * alpha,
+    agl: p.agl + (d.agl - p.agl) * alpha,
+    hdg: d.hdg,
+  };
+}
+
+function buildDynamic(alpha){
+  dynLines.reset(); dynSolid.reset(); dynTrn.reset();
+  const st = E.state, C = E.CONFIG, W = E.world.size;
+  const colRF = hexRGB(C.COLORS.RF);
+
+  // Water plane (translucent, over the below-sea-level terrain).
+  {
+    const c = [0.10, 0.28, 0.40, 0.42], y = 0.6;
+    triInto(dynTrn, 0, y, 0, W, y, 0, W, y, -W, c);
+    triInto(dynTrn, 0, y, 0, W, y, -W, 0, y, -W, c);
+  }
+
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = st.teams[side];
+    const col = hexRGB(T.color);
+
+    // NAI box (draped, dashed).
+    {
+      const b = T.searchBox, a = 0.30;
+      drapeInto(dynLines, b.x, b.y, b.x + b.w, b.y, 3, ...col, a, true);
+      drapeInto(dynLines, b.x + b.w, b.y, b.x + b.w, b.y + b.h, 3, ...col, a, true);
+      drapeInto(dynLines, b.x + b.w, b.y + b.h, b.x, b.y + b.h, 3, ...col, a, true);
+      drapeInto(dynLines, b.x, b.y + b.h, b.x, b.y, 3, ...col, a, true);
+    }
+
+    // RF max-range rings.
+    if ($("tglRF").checked){
+      for (const nd of T.nodes){
+        drapeCircle(dynLines, nd.x, nd.y, C.CUAS.MAX_RANGE_M, 4, ...colRF, 0.15, true);
+      }
+    }
+
+    // DF nodes: tripod cone + mast.
+    for (const nd of T.nodes){
+      const e = Math.max(E.elevAt(nd.x, nd.y), 0);
+      coneInto(dynSolid, nd.x, e, nd.y, 13, 26, 6, [...col, 1]);
+      lineInto(dynLines, nd.x, e, -nd.y, nd.x, e + 46, -nd.y, ...col, 0.8);
+    }
+
+    // GCS: obelisk + antenna mast; destroyed = darkened.
+    {
+      const g = T.gcs, e = Math.max(E.elevAt(g.x, g.y), 0);
+      const gcol = g.destroyed ? [col[0] * 0.3, col[1] * 0.3, col[2] * 0.3, 1] : [...col, 1];
+      boxInto(dynSolid, g.x, e, g.y, 34, 22, 24, gcol);
+      lineInto(dynLines, g.x, e + 22, -g.y, g.x, e + 60, -g.y, ...col, g.destroyed ? 0.25 : 0.8);
+      if (g.transmitting && !g.destroyed){
+        drapeCircle(dynLines, g.x, g.y, 45, 6, ...colRF, 0.6, false);
+      }
+    }
+
+    // Flight trail (viewer-side, altitude-aware).
+    if ($("tglPATH").checked){
+      const tr = trailsV[side];
+      for (let i = 1; i < tr.length; i++){
+        lineInto(dynLines, tr[i - 1].x, tr[i - 1].h, -tr[i - 1].y, tr[i].x, tr[i].h, -tr[i].y, ...col, 0.30);
+      }
+    }
+
+    // Drone dart at true (interpolated) position/altitude.
+    {
+      const d = T.drone;
+      if (d.launched && d.state !== "IMPACT"){
+        const p = droneRenderPos(side, alpha);
+        const ge = Math.max(E.elevAt(p.x, p.y), 0);
+        const y = ge + Math.max(p.agl, 1.5);
+        const f = [Math.sin(p.hdg), 0, -Math.cos(p.hdg)];
+        const r = [Math.cos(p.hdg), 0, Math.sin(p.hdg)];
+        const a = d.downed ? 0.35 : 1;
+        const dc = [col[0], col[1], col[2], a];
+        const S = 1.6; // symbolic scale-up for visibility
+        const px = p.x, pz = -p.y;  // render z = -sim north
+        const N = [px + f[0] * 14 * S, y, pz + f[2] * 14 * S];
+        const TL = [px - f[0] * 9 * S - r[0] * 8 * S, y, pz - f[2] * 9 * S - r[2] * 8 * S];
+        const TR = [px - f[0] * 9 * S + r[0] * 8 * S, y, pz - f[2] * 9 * S + r[2] * 8 * S];
+        const TOP = [px - f[0] * 3 * S, y + 4.5 * S, pz - f[2] * 3 * S];
+        const BOT = [px - f[0] * 3 * S, y - 2.5 * S, pz - f[2] * 3 * S];
+        triInto(dynSolid, ...N, ...TL, ...TOP, dc);
+        triInto(dynSolid, ...N, ...TOP, ...TR, dc);
+        triInto(dynSolid, ...N, ...TR, ...BOT, dc);
+        triInto(dynSolid, ...N, ...BOT, ...TL, dc);
+        triInto(dynSolid, ...TOP, ...TL, ...BOT, dc);
+        triInto(dynSolid, ...TOP, ...BOT, ...TR, dc);
+        if (!d.downed){
+          // Ground shadow tick to anchor altitude perception.
+          lineInto(dynLines, px, ge + 0.5, pz, px, y, pz, ...col, 0.14);
+        }
+      }
+    }
+
+    // Recent LOBs (fading, draped along terrain).
+    if ($("tglLOB").checked){
+      const FADE = 30;
+      for (const m of T.meas.slice(-16)){
+        const age = st.t - m.t;
+        if (age > FADE) continue;
+        const a = (1 - age / FADE) * 0.42;
+        const len = Math.min(C.CUAS.MAX_RANGE_M * 0.85,
+          T.est.p ? E.dist(m.sx, m.sy, T.est.p.x, T.est.p.y) * 1.25 : 2600);
+        const ex = m.sx + Math.sin(m.brg) * len, ey = m.sy + Math.cos(m.brg) * len;
+        drapeInto(dynLines, m.sx, m.sy, clamp(ex, 0, W), clamp(ey, 0, W), 5, ...col, a, false);
+      }
+    }
+
+    // Error ellipse: draped dashed outline + translucent fill.
+    if ($("tglELL").checked && T.est.solved && T.est.cep < 1600){
+      const a1 = Math.min(T.est.s1 * 2.45, 1400), a2 = Math.min(T.est.s2 * 2.45, 1400);
+      const th = T.est.ang;
+      const u = [Math.cos(th), Math.sin(th)], v = [-Math.sin(th), Math.cos(th)];
+      const SEG = 48;
+      const pt = i => {
+        const ph = i / SEG * Math.PI * 2;
+        const wx = clamp(T.est.p.x + u[0] * a1 * Math.cos(ph) + v[0] * a2 * Math.sin(ph), 0, W);
+        const wy = clamp(T.est.p.y + u[1] * a1 * Math.cos(ph) + v[1] * a2 * Math.sin(ph), 0, W);
+        return [wx, wy, Math.max(E.elevAt(wx, wy), 0) + 3];
+      };
+      const c0 = [T.est.p.x, T.est.p.y, Math.max(E.elevAt(T.est.p.x, T.est.p.y), 0) + 3];
+      let prev = pt(0);
+      for (let i = 1; i <= SEG; i++){
+        const cur = pt(i);
+        if (i % 2 === 1) lineInto(dynLines, prev[0], prev[2], -prev[1], cur[0], cur[2], -cur[1], ...col, 0.65);
+        triInto(dynTrn, c0[0], c0[2], -c0[1], prev[0], prev[2], -prev[1], cur[0], cur[2], -cur[1], [...col, 0.09]);
+        prev = cur;
+      }
+      // Center cross.
+      lineInto(dynLines, c0[0] - 18, c0[2] + 1, -c0[1], c0[0] + 18, c0[2] + 1, -c0[1], ...col, 0.8);
+      lineInto(dynLines, c0[0], c0[2] + 1, -c0[1] + 18, c0[0], c0[2] + 1, -c0[1] - 18, ...col, 0.8);
+    }
+
+    // Enemy-drone track diamond (from video DL intercepts), floats mid-air.
+    {
+      const tk = T.droneTrack;
+      if (tk){
+        const age = st.t - tk.t;
+        if (age <= 8){
+          const a = (1 - age / 8) * 0.7;
+          const y = Math.max(E.elevAt(tk.x, tk.y), 0) + 55;
+          const s = 26, z = -tk.y;
+          lineInto(dynLines, tk.x, y + s, z, tk.x + s, y, z, ...col, a);
+          lineInto(dynLines, tk.x + s, y, z, tk.x, y - s, z, ...col, a);
+          lineInto(dynLines, tk.x, y - s, z, tk.x - s, y, z, ...col, a);
+          lineInto(dynLines, tk.x - s, y, z, tk.x, y + s, z, ...col, a);
+        }
+      }
+    }
+  }
+
+  // RF pulses (expanding draped rings at each emitter keying event).
+  for (const p of st.pulses){
+    const age = (st.t - p.t0) / 2.2;
+    const col = hexRGB(p.c);
+    drapeCircle(dynLines, p.x, p.y, age * 240 + 4, 4, ...col, 0.30 * (1 - age), false);
+  }
+
+  // Explosions: flash + expanding ring.
+  for (const ex of st.explosions){
+    const age = st.t - ex.t0;
+    if (age > 3.2) continue;
+    const e = Math.max(E.elevAt(ex.x, ex.y), 0);
+    if (age < 0.5){
+      const s = 14 + age * 60;
+      const c = [1, 0.85, 0.55, 0.85 * (1 - age / 0.5)];
+      boxInto(dynTrn, ex.x, e, ex.y, s, s * 1.3, s, c);
+    }
+    drapeCircle(dynLines, ex.x, ex.y, age / 3.2 * 260 + 6, 3, 1, 0.59, 0.31, 0.7 * (1 - age / 3.2), false);
+  }
+}
+
+function render(alpha){
+  if (!gpu) return;
+  resizeGPU();
+  const { device } = gpu;
+
+  const aspect = gpu.w / gpu.h;
+  const eye = [
+    cam.tx + cam.dist * Math.cos(cam.pitch) * Math.sin(cam.yaw),
+    cam.ty + cam.dist * Math.sin(cam.pitch),
+    cam.tz + cam.dist * Math.cos(cam.pitch) * Math.cos(cam.yaw),
+  ];
+  const view = lookAt(eye, [cam.tx, cam.ty, cam.tz], [0, 1, 0]);
+  const proj = persp(0.9, aspect, 5, 30000);
+  VP = mat4Mul(proj, view);
+
+  const ub = new Float32Array(32);
+  ub.set(VP, 0);
+  ub[16] = $("tglCAN").checked ? 1 : 0;
+  ub[17] = Number($("detsel").value);
+  ub[18] = E.world.size;
+  ub[19] = $("tglGRID").checked ? 1 : 0;
+  ub[20] = -0.45; ub[21] = 0.80; ub[22] = -0.38; ub[23] = 0;  // sun dir (from NW, high)
+  ub[24] = eye[0]; ub[25] = eye[1]; ub[26] = eye[2]; ub[27] = 0;
+  device.queue.writeBuffer(gpu.uni, 0, ub);
+
+  buildDynamic(alpha);
+  device.queue.writeBuffer(gpu.lineVB, 0, dynLines.a.subarray(0, dynLines.n));
+  device.queue.writeBuffer(gpu.solidVB, 0, dynSolid.a.subarray(0, dynSolid.n));
+  device.queue.writeBuffer(gpu.trnVB, 0, dynTrn.a.subarray(0, dynTrn.n));
+
+  const enc = device.createCommandEncoder();
+  const curTex = gpu.offscreen ? gpu.offTex : gpu.ctx.getCurrentTexture();
+  const pass = enc.beginRenderPass({
+    colorAttachments: [{
+      view: gpu.msaa.createView(),
+      resolveTarget: curTex.createView(),
+      clearValue: { r: 0.023, g: 0.039, b: 0.047, a: 1 },
+      loadOp: "clear", storeOp: "discard",
+    }],
+    depthStencilAttachment: {
+      view: gpu.depthTex.createView(),
+      depthClearValue: 1, depthLoadOp: "clear", depthStoreOp: "discard",
+    },
+  });
+  pass.setPipeline(gpu.terrPipe);
+  pass.setBindGroup(0, gpu.terrBG);
+  pass.setVertexBuffer(0, gpu.terrVB);
+  pass.setIndexBuffer(gpu.terrIB, "uint32");
+  pass.drawIndexed(gpu.terrIdxCount);
+
+  pass.setPipeline(gpu.solidOpq);
+  pass.setBindGroup(0, gpu.solidBGO);
+  if ($("tglTREE").checked && gpu.treeCount){
+    pass.setVertexBuffer(0, gpu.treeVB);
+    pass.draw(gpu.treeCount);
+  }
+  if (dynSolid.n){
+    pass.setVertexBuffer(0, gpu.solidVB);
+    pass.draw(dynSolid.n / 10);
+  }
+  if (dynTrn.n){
+    pass.setPipeline(gpu.solidTrn);
+    pass.setBindGroup(0, gpu.solidBGT);
+    pass.setVertexBuffer(0, gpu.trnVB);
+    pass.draw(dynTrn.n / 10);
+  }
+  if (dynLines.n){
+    pass.setPipeline(gpu.linePipe);
+    pass.setBindGroup(0, gpu.lineBG);
+    pass.setVertexBuffer(0, gpu.lineVB);
+    pass.draw(dynLines.n / 7);
+  }
+  pass.end();
+  // Optional one-shot frame readback (verification/debug; see __test.snapshot).
+  const snap = window.__snapReq;
+  let snapBuf = null, snapRow = 0;
+  if (snap){
+    window.__snapReq = null;
+    snapRow = Math.ceil(gpu.w * 4 / 256) * 256;
+    snapBuf = device.createBuffer({ size: snapRow * gpu.h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    enc.copyTextureToBuffer({ texture: curTex }, { buffer: snapBuf, bytesPerRow: snapRow }, [gpu.w, gpu.h]);
+  }
+  device.queue.submit([enc.finish()]);
+  window.__frames = (window.__frames || 0) + 1;
+  if (snap) snap({ buf: snapBuf, rowBytes: snapRow, w: gpu.w, h: gpu.h });
+}
+
+/* ------------------------------ labels ------------------------------- */
+const lblPool = [];
+function project(x, y, z){
+  if (!VP) return null;
+  const cx = VP[0] * x + VP[4] * y + VP[8] * z + VP[12];
+  const cy = VP[1] * x + VP[5] * y + VP[9] * z + VP[13];
+  const cw = VP[3] * x + VP[7] * y + VP[11] * z + VP[15];
+  if (cw <= 0) return null;
+  const stage = $("stage");
+  return {
+    x: (cx / cw * 0.5 + 0.5) * stage.clientWidth,
+    y: (1 - (cy / cw * 0.5 + 0.5)) * stage.clientHeight,
+  };
+}
+function updateLabels(alpha){
+  const wrap = $("labels");
+  let used = 0;
+  const put = (x, y, z, html, color) => {
+    const p = project(x, y, z);
+    if (!p) return;
+    if (p.x < -80 || p.x > wrap.clientWidth + 80 || p.y < -40 || p.y > wrap.clientHeight + 40) return;
+    let el = lblPool[used];
+    if (!el){ el = document.createElement("div"); el.className = "lbl"; wrap.appendChild(el); lblPool.push(el); }
+    el.style.left = p.x + "px"; el.style.top = p.y + "px";
+    el.style.color = color;
+    if (el.innerHTML !== html) el.innerHTML = html;
+    el.style.display = "block";
+    used++;
+  };
+  if ($("tglLBL").checked && E && VP){
+    const st = E.state;
+    for (const side of ["BLUFOR", "OPFOR"]){
+      const T = st.teams[side];
+      const gy = Math.max(E.elevAt(T.gcs.x, T.gcs.y), 0);
+      put(T.gcs.x, gy + 66, -T.gcs.y,
+        side + " GCS" + (T.gcs.destroyed ? " ✕" : (T.gcs.transmitting ? ' <span class="tx">TX</span>' : "")),
+        T.color);
+      for (const nd of T.nodes){
+        const ny = Math.max(E.elevAt(nd.x, nd.y), 0);
+        put(nd.x, ny + 52, -nd.y, nd.id.replace(side + "-", ""), T.color);
+      }
+      const d = T.drone;
+      if (d.launched && d.state !== "IMPACT" && !d.downed){
+        const p = droneRenderPos(side, alpha);
+        const y = Math.max(E.elevAt(p.x, p.y), 0) + Math.max(p.agl, 1.5);
+        put(p.x, y + 16, -p.y,
+          "sUAS-1" + (d.videoOn ? ' <span class="tx">TX</span>' : ""), T.color);
+      }
+      if ($("tglELL").checked && T.est.solved && T.est.cep < 1600){
+        const ey = Math.max(E.elevAt(T.est.p.x, T.est.p.y), 0);
+        put(T.est.p.x, ey + 26, -T.est.p.y, "CEP " + Math.round(T.est.cep) + "M", T.color);
+      }
+    }
+  }
+  for (let i = used; i < lblPool.length; i++) lblPool[i].style.display = "none";
+}
+
+/* ------------------------- HUD / cards / log ------------------------- */
+function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+function updateCards(){
+  const C = E.CONFIG;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = E.state.teams[side], d = T.drone;
+    const el = side === "BLUFOR" ? $("cardB") : $("cardO");
+    el.style.borderColor = T.color + "8c";
+    const dState = !d.launched ? "PREFLIGHT" : d.downed ? "DOWN" : d.state;
+    const hot = d.state === "COMMIT" || d.state === "TERMINAL";
+    let stTxt = "SEARCHING", stCol = "";
+    if (T.gcs.destroyed){ stTxt = "GCS DESTROYED"; stCol = C.COLORS.OPFOR; }
+    else if (T.flags.committed){ stTxt = "ATTACK COMMITTED"; stCol = C.COLORS.RF; }
+    else if (T.flags.fixed) stTxt = "FIX HELD";
+    else if (T.flags.crossFix) stTxt = "CROSS-FIX FORMING";
+    else if (T.flags.firstLOB) stTxt = "COLLECTING";
+    el.innerHTML =
+      `<div class="hd"><span style="color:${T.color}">${side}</span>` +
+      `<span style="color:${T.emcon.emconLabel === "CONTINUOUS" ? C.COLORS.RF : "var(--dim)"}">EMCON ${T.emcon.emconLabel}</span></div>` +
+      `<div class="row"><span class="k">sUAS-1 ${dState}</span><span style="color:${hot ? C.COLORS.RF : (d.batt < 30 && d.launched ? C.COLORS.OPFOR : "inherit")}">` +
+      `${d.launched && !d.downed ? "BATT " + Math.round(d.batt) + "%" : "--"}</span></div>` +
+      `<div class="row"><span class="k">LOBS ${T.meas.length}</span><span>` +
+      `${T.est.solved && T.est.cep < 1600 ? "CEP " + Math.round(T.est.cep) + "M" : "NO FIX"}</span></div>` +
+      `<div class="row"><span class="k">STATUS</span><span style="color:${stCol || "inherit"}">${stTxt}</span></div>`;
+  }
+}
+function updateLog(){
+  const ev = E.events;
+  if (ev.length < logCount){ $("log").innerHTML = ""; logCount = 0; }
+  const log = $("log");
+  const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+  while (logCount < ev.length){
+    const e = ev[logCount++];
+    const row = document.createElement("div");
+    row.className = "row";
+    const cls = e.side === "BLUFOR" ? "B" : e.side === "OPFOR" ? "O" : "S";
+    row.innerHTML = `<span class="lt">${E.fmtT(e.t)}</span><span class="chip ${cls}">${e.side === "SYS" ? "SYS" : e.side}</span><span class="tx">${esc(e.text)}</span>`;
+    log.appendChild(row);
+  }
+  if (nearBottom) log.scrollTop = log.scrollHeight;
+}
+function updatePlayBtn(){ $("btnPlay").textContent = playing ? "Pause" : "Play"; }
+
+function showEndcard(){
+  const W = E.state.winner, L = E.state.teams[W].enemy;
+  $("endTitle").textContent = "ENDEX // " + W + " VICTORY";
+  $("endTitle").style.color = E.CONFIG.COLORS[W];
+  const tagline = E.state.teams[W].emcon.emconLabel === "INTERMITTENT"
+    ? "EMISSIONS DISCIPLINE DECIDED THE FIGHT"
+    : "DETECTION TIMELINE DECIDED THE FIGHT";
+  $("endSub").textContent = L + " GCS DESTROYED BY " + W + " sUAS-1 AT " + E.fmtT(E.state.endT) + " // " + tagline;
+  $("endcard").classList.remove("hidden");
+}
+
+/* --------------------------- sim control ----------------------------- */
+function resetTo(seed, andPlay){
+  E.events.length = 0;
+  logCount = 0; $("log").innerHTML = "";
+  E.resetSim(seed);
+  trailsV.BLUFOR = []; trailsV.OPFOR = [];
+  trailAccV.BLUFOR = 0; trailAccV.OPFOR = 0;
+  prevD.BLUFOR = null; prevD.OPFOR = null;
+  endShownLocal = false; acc = 0;
+  $("endcard").classList.add("hidden");
+  $("seedVal").textContent = seed;
+  const sel = $("scenario");
+  if (FEATURED.includes(String(seed))){ sel.value = String(seed); }
+  else { sel.querySelector('option[value="custom"]').hidden = false; sel.value = "custom"; }
+  if (gpu) buildStatic();
+  playing = !!andPlay;
+  updatePlayBtn();
+  updateLog();
+  updateCards();
+}
+
+function snapshotPrev(){
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const d = E.state.teams[side].drone;
+    prevD[side] = { x: d.x, y: d.y, agl: d.agl, hdg: d.hdg };
+  }
+}
+function postStep(dt){
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const d = E.state.teams[side].drone;
+    trailAccV[side] += dt;
+    if (d.launched && !d.downed && d.spd > 1 && trailAccV[side] >= 0.5){
+      trailAccV[side] = 0;
+      const tr = trailsV[side];
+      tr.push({ x: d.x, y: d.y, h: Math.max(E.elevAt(d.x, d.y), 0) + Math.max(d.agl, 1.5) });
+      if (tr.length > 2200) tr.shift();
+    }
+  }
+}
+
+function frame(ts){
+  const dtReal = Math.min(0.05, (ts - lastTs) / 1000);
+  lastTs = ts;
+  const DT = E.CONFIG.SIM_DT;
+  if (playing){
+    acc += dtReal * speed;
+    let guard = 0;
+    while (acc >= DT && guard++ < 400){
+      snapshotPrev();
+      E.stepSim(DT);
+      postStep(DT);
+      acc -= DT;
+    }
+  }
+  if (E.state.winner && !endShownLocal && E.state.t - E.state.endT > 5){
+    endShownLocal = true; playing = false; updatePlayBtn();
+    showEndcard();
+  }
+  $("simclock").textContent = E.fmtT(E.state.t);
+  $("phase").textContent = E.state.phase;
+  const alpha = playing ? clamp(acc / DT, 0, 1) : 1;
+  render(alpha);
+  updateLabels(alpha);
+  updateCards();
+  updateLog();
+  requestAnimationFrame(frame);
+}
+
+/* --------------------------- camera input ---------------------------- */
+function wireCamera(){
+  const canvas = $("gl");
+  let drag = null;
+  canvas.addEventListener("pointerdown", ev => {
+    canvas.setPointerCapture(ev.pointerId);
+    drag = { x: ev.clientX, y: ev.clientY, pan: ev.shiftKey || ev.button === 2 };
+    canvas.classList.add("dragging");
+  });
+  canvas.addEventListener("pointermove", ev => {
+    if (!drag) return;
+    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    drag.x = ev.clientX; drag.y = ev.clientY;
+    if (drag.pan){
+      const s = cam.dist / 900;
+      const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
+      cam.tx -= (dx * Math.cos(cam.yaw) - dy * -fx) * s;
+      cam.tz -= (dx * -Math.sin(cam.yaw) - dy * -fz) * s;
+      cam.tx = clamp(cam.tx, -1000, E.world.size + 1000);
+      cam.tz = clamp(cam.tz, -E.world.size - 1000, 1000);
+    } else {
+      cam.yaw -= dx * 0.005;
+      cam.pitch = clamp(cam.pitch + dy * 0.004, 0.12, 1.48);
+    }
+  });
+  const endDrag = () => { drag = null; canvas.classList.remove("dragging"); };
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+  canvas.addEventListener("wheel", ev => {
+    ev.preventDefault();
+    cam.dist = clamp(cam.dist * Math.exp(ev.deltaY * 0.0011), 250, 14000);
+  }, { passive: false });
+  canvas.addEventListener("contextmenu", ev => ev.preventDefault());
+}
+
+/* ------------------------------ wiring ------------------------------- */
+function wireUI(){
+  $("btnPlay").addEventListener("click", () => {
+    if (E.state.winner && endShownLocal) return;
+    playing = !playing; updatePlayBtn();
+  });
+  $("btnReset").addEventListener("click", () => resetTo(E.state.seed, false));
+  $("btnCam").addEventListener("click", () => Object.assign(cam, CAM0));
+  const rndSeed = () => 1000 + Math.floor(Math.random() * 899999);
+  $("btnNewSeed").addEventListener("click", () => resetTo(rndSeed(), false));
+  $("btnNewSeed2").addEventListener("click", () => resetTo(rndSeed(), true));
+  $("btnReplay2").addEventListener("click", () => resetTo(E.state.seed, true));
+  $("scenario").addEventListener("change", ev => {
+    if (ev.target.value === "custom") return;
+    resetTo(Number(ev.target.value), true);
+  });
+  document.querySelectorAll("#speedGrp button").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll("#speedGrp button").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      speed = Number(b.dataset.spd);
+    });
+  });
+  window.addEventListener("resize", resizeGPU);
+  wireCamera();
+}
+
+/* ------------------------------ boot --------------------------------- */
+(async function boot(){
+  try {
+    E = await loadEngine();
+  } catch (err) {
+    fatal("ENGINE LOAD FAILED",
+      "Could not load the simulation engine from <b>index.html</b>: " + esc(err.message) +
+      "<br><br>This page must be served over HTTP(S) alongside index.html " +
+      "(it does not work from a file:// URL). Try the hosted version at " +
+      "<b>wasomma.github.io/fpv-sim/viewer3d.html</b>.");
+    return;
+  }
+  try {
+    gpu = await initGPU($("gl"));
+  } catch (err) {
+    console.error("WebGPU init failed:", err);
+    gpu = null;
+  }
+
+  // Deep link: same contract as the 2D sim (?seed=<n>&play=1).
+  let qsSeed = NaN, qsPlay = false;
+  try {
+    const qs = new URLSearchParams(location.search);
+    qsSeed = Number.parseInt(qs.get("seed") ?? "", 10);
+    qsPlay = qs.get("play") === "1";
+  } catch { /* no deep link */ }
+  const seed = Number.isFinite(qsSeed) && qsSeed >= 0 ? qsSeed : E.CONFIG.SEED;
+
+  wireUI();
+  resetTo(seed, qsPlay && !!gpu);
+
+  if (!gpu){
+    fatal("WEBGPU UNAVAILABLE",
+      "This 3D viewer needs a WebGPU-capable browser (Chrome/Edge 113+, recent Safari or Firefox). " +
+      "The simulation engine itself loaded fine — the <b>2D sim</b> link above works everywhere.");
+  } else {
+    $("msg").classList.add("hidden");
+  }
+
+  // Test hook: headless parity check against fpv-sim-mcp's golden fixtures.
+  window.__test = {
+    engine: E,
+    gpuOk: () => !!gpu,
+    async snapshot(){
+      // True-pixels frame capture via GPU readback (independent of the
+      // compositor, so it works even in headless environments).
+      if (!gpu) return null;
+      const p = await new Promise(res => { window.__snapReq = res; });
+      await p.buf.mapAsync(GPUMapMode.READ);
+      const data = new Uint8Array(p.buf.getMappedRange());
+      const c2 = document.createElement("canvas");
+      c2.width = p.w; c2.height = p.h;
+      const cx = c2.getContext("2d");
+      const img = cx.createImageData(p.w, p.h);
+      const bgra = gpu.format === "bgra8unorm";
+      for (let y = 0; y < p.h; y++){
+        for (let x = 0; x < p.w; x++){
+          const si = y * p.rowBytes + x * 4, di = (y * p.w + x) * 4;
+          img.data[di] = data[bgra ? si + 2 : si];
+          img.data[di + 1] = data[si + 1];
+          img.data[di + 2] = data[bgra ? si : si + 2];
+          img.data[di + 3] = 255;
+        }
+      }
+      p.buf.unmap();
+      cx.putImageData(img, 0, 0);
+      return c2.toDataURL("image/png");
+    },
+    runHeadless(seedN, maxT = 3600){
+      E.events.length = 0;
+      E.resetSim(seedN);
+      let g = 0;
+      while (!E.state.winner && E.state.t < maxT && g++ < 400000) E.stepSim(E.CONFIG.SIM_DT);
+      return {
+        seed: seedN,
+        winner: E.state.winner,
+        endT: E.state.winner ? Math.round(E.state.endT * 10) / 10 : null,
+        duration: Math.round(E.state.t * 10) / 10,
+        events: E.events.length,
+        lobs: { BLUFOR: E.state.teams.BLUFOR.meas.length, OPFOR: E.state.teams.OPFOR.meas.length },
+      };
+    },
+  };
+
+  lastTs = performance.now();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

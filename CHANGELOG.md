@@ -15,6 +15,20 @@ Monte Carlo results — such a change is called out explicitly as
 ## [Unreleased]
 
 ### Added
+- **Experimental 3D viewer** (`viewer3d.html`): a WebGPU rendering of the
+  same engagement — 3D hillshaded terrain with the canopy field as
+  instanced trees, drones at true altitude, terrain-draped LOBs, error
+  ellipses, flight paths, and a compute-shader "detectability field"
+  overlay (per-scan intercept probability for a hypothetical uplink at
+  every map point, the RF-propagation model made visible). Not
+  behavior-changing and contains no simulation code: it loads the engine
+  from `index.html` at runtime via the same inert-DOM harness technique
+  fpv-sim-mcp's fixture generator uses, and drives the real
+  `resetSim()`/`stepSim()`. Parity verified in-browser against all five
+  golden-fixture seeds (winner, end time, LOB and event counts identical).
+  Same `?seed=<n>&play=1` deep-link contract as the sim. Requires a
+  WebGPU browser and HTTP serving; falls back to a clear notice (engine
+  and event log still run) where WebGPU is unavailable.
 - **License** ([LICENSE.md](LICENSE.md)): the repository is now explicitly
   licensed under the PolyForm Strict License 1.0.0 — public to read and
   use noncommercially, but not open source (no modification,
