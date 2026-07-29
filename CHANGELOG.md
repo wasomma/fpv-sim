@@ -16,10 +16,11 @@ Monte Carlo results — such a change is called out explicitly as
 
 ### Added
 - **Experimental 3D viewer** (`viewer3d.html`): a WebGPU rendering of the
-  same engagement — 3D hillshaded terrain with the canopy field as
-  instanced trees, drones at true altitude, terrain-draped LOBs, error
-  ellipses, flight paths, and a compute-shader "detectability field"
-  overlay (per-scan intercept probability for a hypothetical uplink at
+  same engagement — 3D hillshaded terrain, the canopy field as a
+  translucent shell at canopy height (opacity tracks density; clearings
+  and the trail read as holes) plus instanced trees, drones at true
+  altitude, terrain-draped LOBs, error ellipses, flight paths, and a
+  compute-shader "detectability field" overlay (per-scan intercept probability for a hypothetical uplink at
   every map point, the RF-propagation model made visible). Not
   behavior-changing and contains no simulation code: it loads the engine
   from `index.html` at runtime via the same inert-DOM harness technique
