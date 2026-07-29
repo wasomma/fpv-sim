@@ -28,7 +28,8 @@ Monte Carlo results — such a change is called out explicitly as
   golden-fixture seeds (winner, end time, LOB and event counts identical).
   Same `?seed=<n>&play=1` deep-link contract as the sim. Requires a
   WebGPU browser and HTTP serving; falls back to a clear notice (engine
-  and event log still run) where WebGPU is unavailable.
+  and event log still run) where WebGPU is unavailable. Touch controls
+  for phones/tablets: one-finger orbit, two-finger pinch zoom and pan.
 - **License** ([LICENSE.md](LICENSE.md)): the repository is now explicitly
   licensed under the PolyForm Strict License 1.0.0 — public to read and
   use noncommercially, but not open source (no modification,

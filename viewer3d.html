@@ -1347,31 +1347,70 @@ function frame(ts){
 }
 
 /* --------------------------- camera input ---------------------------- */
+// Mouse: drag orbit, shift/right-drag pan, wheel zoom.
+// Touch: one finger orbit, two-finger pinch zoom + drag pan.
+function panBy(dx, dy){
+  const s = cam.dist / 900;
+  const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
+  cam.tx -= (dx * Math.cos(cam.yaw) - dy * -fx) * s;
+  cam.tz -= (dx * -Math.sin(cam.yaw) - dy * -fz) * s;
+  cam.tx = clamp(cam.tx, -1000, E.world.size + 1000);
+  cam.tz = clamp(cam.tz, -E.world.size - 1000, 1000);
+}
 function wireCamera(){
   const canvas = $("gl");
-  let drag = null;
+  const pts = new Map();   // active pointers: pointerId -> {x, y}
+  let drag = null;         // single-pointer drag state
+  let pinch = null;        // two-pointer baseline: {d, cx, cy}
   canvas.addEventListener("pointerdown", ev => {
-    canvas.setPointerCapture(ev.pointerId);
-    drag = { x: ev.clientX, y: ev.clientY, pan: ev.shiftKey || ev.button === 2 };
+    try { canvas.setPointerCapture(ev.pointerId); } catch { /* synthetic events */ }
+    pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pts.size === 1){
+      drag = { x: ev.clientX, y: ev.clientY, pan: ev.shiftKey || ev.button === 2 };
+    } else {
+      drag = null;   // second finger down: switch to pinch, re-baseline on move
+      pinch = null;
+    }
     canvas.classList.add("dragging");
   });
   canvas.addEventListener("pointermove", ev => {
-    if (!drag) return;
-    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
-    drag.x = ev.clientX; drag.y = ev.clientY;
-    if (drag.pan){
-      const s = cam.dist / 900;
-      const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
-      cam.tx -= (dx * Math.cos(cam.yaw) - dy * -fx) * s;
-      cam.tz -= (dx * -Math.sin(cam.yaw) - dy * -fz) * s;
-      cam.tx = clamp(cam.tx, -1000, E.world.size + 1000);
-      cam.tz = clamp(cam.tz, -E.world.size - 1000, 1000);
-    } else {
-      cam.yaw -= dx * 0.005;
-      cam.pitch = clamp(cam.pitch + dy * 0.004, 0.12, 1.48);
+    if (!pts.has(ev.pointerId)) return;  // hover move, no button down
+    pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pts.size >= 2){
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      if (pinch){
+        if (pinch.d > 10 && d > 10){
+          cam.dist = clamp(cam.dist * (pinch.d / d), 250, 14000);
+        }
+        panBy(cx - pinch.cx, cy - pinch.cy);
+      }
+      pinch = { d, cx, cy };
+    } else if (drag){
+      const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+      drag.x = ev.clientX; drag.y = ev.clientY;
+      if (drag.pan){
+        panBy(dx, dy);
+      } else {
+        cam.yaw -= dx * 0.005;
+        cam.pitch = clamp(cam.pitch + dy * 0.004, 0.12, 1.48);
+      }
     }
   });
-  const endDrag = () => { drag = null; canvas.classList.remove("dragging"); };
+  const endDrag = ev => {
+    pts.delete(ev.pointerId);
+    pinch = null;
+    if (pts.size === 1){
+      // One finger remains after a pinch: continue as an orbit drag from
+      // its current position (no jump).
+      const [p] = [...pts.values()];
+      drag = { x: p.x, y: p.y, pan: false };
+    } else if (pts.size === 0){
+      drag = null;
+      canvas.classList.remove("dragging");
+    }
+  };
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
   canvas.addEventListener("wheel", ev => {
@@ -1436,6 +1475,9 @@ function wireUI(){
   } catch { /* no deep link */ }
   const seed = Number.isFinite(qsSeed) && qsSeed >= 0 ? qsSeed : E.CONFIG.SEED;
 
+  if (navigator.maxTouchPoints > 0){
+    $("camhint").textContent = "DRAG ORBIT // PINCH ZOOM // TWO-FINGER PAN";
+  }
   wireUI();
   resetTo(seed, qsPlay && !!gpu);
 
@@ -1450,6 +1492,7 @@ function wireUI(){
   // Test hook: headless parity check against fpv-sim-mcp's golden fixtures.
   window.__test = {
     engine: E,
+    cam,
     gpuOk: () => !!gpu,
     async snapshot(){
       // True-pixels frame capture via GPU readback (independent of the
