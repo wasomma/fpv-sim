@@ -14,6 +14,12 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-08-16
+
+Not behavior-changing: the simulation engine in `index.html` is untouched
+and fpv-sim-mcp's golden fixtures still reproduce (weekly drift check green
+against this commit's parent).
+
 ### Added
 - **Experimental 3D viewer** (`viewer3d.html`): a WebGPU rendering of the
   same engagement — 3D hillshaded terrain, the canopy field as a
@@ -42,12 +48,34 @@ Monte Carlo results — such a change is called out explicitly as
   ad-hoc only); ad-hoc datasets render their headline tiles, timelines,
   and click-to-watch seeds, omitting the study-only dose and paired
   charts. Shared runner logic extracted to `scripts/sweep-utils.mjs`.
+- `CLAUDE.md` working notes for future sessions: the same-seed
+  determinism invariant, the repo layout, and the cross-repo contract
+  with fpv-sim-mcp.
+
+### Removed
+- The 3D viewer's RF Coverage toggle. Its flat max-range rings were
+  nearly invisible in the 3D scene and misleading besides — the
+  Detectability Field overlay supersedes them with the actual
+  propagation-aware coverage picture (range falloff, terrain blocking,
+  canopy loss). The GCS transmit ring and RF pulse effects are
+  unaffected. The 2D sim's RF Coverage toggle is unchanged.
 
 ### Fixed
 - The seed deep-link code crashed non-browser harnesses (no
   `location`/`URLSearchParams` in fpv-sim-mcp's golden-fixture VM),
   which would have broken that repo's weekly drift check. Now guarded;
   fixture regeneration verified identical before and after.
+- 3D viewer layout on phones and short windows: the side panel now
+  scrolls instead of painting past the bottom banner or into the team
+  cards, the header wraps instead of spilling off the right edge, and
+  the stacked map-over-panel breakpoint rises from 700 px to 860 px so
+  portrait phones and folds get it (team cards side by side there,
+  stacking again under 560 px). Verified with layout assertions at
+  390×800, 750×1400, 1280×650, and 1440×900.
+
+### Docs
+- Release tags `v1.0.0`–`v1.3.0` published (2026-08-16); compare links
+  below use tag form.
 
 ## [1.3.0] — 2026-07-23
 
@@ -115,7 +143,8 @@ Monte Carlo results — such a change is called out explicitly as
 - Team status HUD cards, map overlay layout polish, cover-fit map view,
   and sidebar playback controls.
 
-[Unreleased]: https://github.com/wasomma/fpv-sim/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/wasomma/fpv-sim/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/wasomma/fpv-sim/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/wasomma/fpv-sim/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/wasomma/fpv-sim/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/wasomma/fpv-sim/compare/v1.0.0...v1.1.0
