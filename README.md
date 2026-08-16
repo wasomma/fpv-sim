@@ -95,7 +95,9 @@ The dropdown ships five curated seeds:
 - **Discipline Wins, Fast (BLUFOR)** — EMCON advantage converts quickly
 - **Deliberate Fix (BLUFOR)** — a slower, methodical collection problem
 - **OPFOR Prevails** — the continuous emitter gets lucky and wins the race
-- **Close Race (OPFOR)** — both sides commit nearly simultaneously
+- **Close Race (OPFOR)** — both sides establish a fix within ~3 s of each
+  other; BLUFOR's is held just above the commit gate by lopsided collection
+  (one node holds most of its LOBs), and OPFOR commits and strikes first
 
 Because the RNG is fully deterministic (seeded `mulberry32`), these are simply
 seeds whose engagements were observed to produce instructive outcomes. The
