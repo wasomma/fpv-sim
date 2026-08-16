@@ -14,6 +14,18 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
+### Docs
+- DESIGN_NOTES.md corrected against the code (no code change): emplacement
+  jitter is ±60 m per axis, not ±120 m; `pathAtten` samples 13 interior
+  points (`K = 14`, `i = 1..13`) and in practice tops out near 3.9 — the
+  cap of 6 is never reached; the WLS weights floor range at 300 m; the
+  geometry-penalty cut angle is measured between the two strongest
+  sensors' bearings *to the current estimate*, not their mean LOBs; the
+  terminal search is an outward spiral (radius +22 m/s), not an expanding
+  square; randomness is several `mulberry32` streams derived from the seed
+  (main engagement stream plus terrain/speckle streams), not one; and the
+  seed readout is in the sidebar Controls, not a footer.
+
 ## [1.4.0] — 2026-08-16
 
 Not behavior-changing: the simulation engine in `index.html` is untouched
