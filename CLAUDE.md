@@ -67,8 +67,11 @@ here — index.html is the spec, fpv-sim-mcp is the verified headless twin.
 ## Conventions
 
 - CHANGELOG.md: Keep a Changelog + semver; accumulate under
-  `[Unreleased]`, roll into a version on release. Compare links currently
-  use commit SHAs (tags pending — see open issues).
+  `[Unreleased]`, roll into a version on release. Compare links use
+  release tags: when cutting a version, tag `vX.Y.Z` on the merge commit
+  that carries the "Cut version" change, push the tag, and publish a
+  GitHub release whose notes are that CHANGELOG section (v1.0.0–v1.3.0
+  exist as of 2026-08-16).
 - Dashboard chart colors are the sim's hues darkened to pass CVD/contrast
   validation on the dark surface (see the `:root` comment in
   dashboard.html); the sim's original brighter hues are for chrome only.
@@ -78,5 +81,5 @@ here — index.html is the spec, fpv-sim-mcp is the verified headless twin.
 
 ## Open work
 
-Check the repo's open issues first — outstanding owner actions (version
-tags/releases, etc.) are tracked there, not in this file.
+Check the repo's open issues first — outstanding owner actions are
+tracked there, not in this file.

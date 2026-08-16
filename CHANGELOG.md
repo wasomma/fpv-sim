@@ -115,8 +115,8 @@ Monte Carlo results — such a change is called out explicitly as
 - Team status HUD cards, map overlay layout polish, cover-fit map view,
   and sidebar playback controls.
 
-[Unreleased]: https://github.com/wasomma/fpv-sim/compare/a57bce5...HEAD
-[1.3.0]: https://github.com/wasomma/fpv-sim/compare/57ec4d8...a57bce5
-[1.2.0]: https://github.com/wasomma/fpv-sim/compare/69cf528...57ec4d8
-[1.1.0]: https://github.com/wasomma/fpv-sim/compare/0cb383c...69cf528
-[1.0.0]: https://github.com/wasomma/fpv-sim/commits/0cb383c
+[Unreleased]: https://github.com/wasomma/fpv-sim/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/wasomma/fpv-sim/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/wasomma/fpv-sim/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/wasomma/fpv-sim/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/wasomma/fpv-sim/releases/tag/v1.0.0
