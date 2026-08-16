@@ -70,8 +70,8 @@ here — index.html is the spec, fpv-sim-mcp is the verified headless twin.
   `[Unreleased]`, roll into a version on release. Compare links use
   release tags: when cutting a version, tag `vX.Y.Z` on the merge commit
   that carries the "Cut version" change, push the tag, and publish a
-  GitHub release whose notes are that CHANGELOG section (v1.0.0–v1.3.0
-  exist as of 2026-08-16).
+  GitHub release whose notes are that CHANGELOG section. A version cut
+  is CHANGELOG-only — nothing in the app carries a version string.
 - Dashboard chart colors are the sim's hues darkened to pass CVD/contrast
   validation on the dark surface (see the `:root` comment in
   dashboard.html); the sim's original brighter hues are for chrome only.
