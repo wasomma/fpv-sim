@@ -25,6 +25,18 @@ Monte Carlo results — such a change is called out explicitly as
   square; randomness is several `mulberry32` streams derived from the seed
   (main engagement stream plus terrain/speckle streams), not one; and the
   seed readout is in the sidebar Controls, not a footer.
+- README "Close Race (OPFOR)" description corrected: in seed 59 both sides
+  *fix* within ~3 s (BLUFOR T+03:33, OPFOR T+03:36) but only OPFOR ever
+  commits — BLUFOR's fix is held just above the 120 m commit gate by the
+  balance penalty (27 of its 37 LOBs from one node). "Both sides commit"
+  was wrong.
+- DEVELOPMENT_HISTORY "Validated engagement character" timeline replaced
+  with the shipped default's actual figures (seed 20260719: cross-fix
+  T+01:53, FIX T+02:11 at CEP 191 m, commit T+04:28 at CEP 117 m, impact
+  T+05:11); the previous numbers were from an intermediate tuning pass.
+  "Current State" retitled as the state at the end of the authoring
+  session (2026-07-20) with a pointer to this changelog for everything
+  since.
 
 ## [1.4.0] — 2026-08-16
 

@@ -154,12 +154,20 @@ from the second collector. (All three values verified present in the shipped
 ### Validated engagement character
 
 The tuned default run demonstrates the intended asymmetric dynamic. Timeline
-on the order of: cross-fix forming around T+01:51 (6 LOBs), FIX ESTABLISHED
-around T+03:13 (CEP 122 m), attack commit around T+04:23 (CEP 87 m), impact
-around T+05:44. One side running intermittent EMCON wins; the other side,
-emitting continuously, is detected quickly on its video downlink and never
-accumulates enough LOBs against the disciplined side to build a fix. This is
-exactly the teaching point the demo exists to communicate.
+of the shipped default (seed 20260719, as reproduced tick-for-tick by the
+golden fixtures in fpv-sim-mcp): BLUFOR cross-fix forming at T+01:53 (9 LOBs),
+FIX ESTABLISHED at T+02:11 (CEP 191 m, 11 LOBs), attack commit at T+04:28
+(CEP 117 m), terminal descent at T+05:02, visual acquisition at T+05:06,
+impact at T+05:11. OPFOR gets a cross-fix forming only at T+04:25 (7 LOBs)
+and never reaches FIX. One side running intermittent EMCON wins; the other
+side, emitting continuously, is detected quickly on its video downlink and
+never accumulates enough LOBs against the disciplined side to build a fix.
+This is exactly the teaching point the demo exists to communicate.
+
+(The numbers quoted in the original authoring conversation — FIX around
+T+03:13 at CEP 122 m, commit around T+04:23 at CEP 87 m, impact around
+T+05:44 — were from an intermediate tuning pass and do not match the shipped
+`CONFIG`; the figures above are from the shipped file.)
 
 ## Deployment
 
@@ -172,7 +180,7 @@ from the `main` branch root, and the live URL was verified serving the demo:
 
 **https://wasomma.github.io/fpv-sim/**
 
-## Current State
+## State at the end of the authoring session (2026-07-20)
 
 - Validated single-file build with honest DF physics, five curated scenarios,
   and full interactivity per the baseline requirements.
@@ -180,3 +188,11 @@ from the `main` branch root, and the live URL was verified serving the demo:
   the repository.
 - Design baseline locked in project instructions; iteration continues on this
   one visualization.
+
+Everything since — the headless TypeScript twin and MCP server
+([fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp)), the 22,800-run Monte
+Carlo study, the results dashboard, ad-hoc sweeps, the WebGPU 3D viewer, and
+the parameter reference — is recorded release by release in
+[CHANGELOG.md](CHANGELOG.md). The simulation engine in `index.html` has not
+changed since this session; that is what lets those later pieces be verified
+against it.
