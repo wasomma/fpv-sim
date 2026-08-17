@@ -11,8 +11,10 @@
 # headlessly — breaks the contract. This workflow makes such a break show
 # up as a red check on the PR, instead of being discovered after the fact
 # by fpv-sim-mcp's weekly upstream-drift run (which is the mirror-image
-# check on that side). It is a status check, not a hard block: a failing
-# run only prevents merging if branch protection makes this job required.
+# check on that side, and a required status check on its main). This one
+# is advisory: it is path-filtered, and GitHub leaves a skipped required
+# check Pending forever, which would strand every PR not touching
+# index.html.
 #
 # What it does: checks out this PR's index.html and fpv-sim-mcp main side
 # by side, proves fpv-sim-mcp's engine reproduces its own committed
