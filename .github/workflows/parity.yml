@@ -1,0 +1,150 @@
+# Parity check for index.html.
+#
+# index.html is the specification of the simulation. The sibling repo
+# wasomma/fpv-sim-mcp holds a TypeScript port of its core whose parity is
+# proven by golden-master fixtures generated FROM this file: fpv-sim-mcp's
+# scripts/generate-goldens.mjs runs the <script> block headless in a Node
+# vm and records each featured seed's full run (winner, timeline, per-team
+# state, and every event-log line — that repo's contract is string-equal
+# events). Same-seed determinism is this project's API, so an edit here
+# that changes any of that — or that stops the script block loading
+# headlessly — breaks the contract. This workflow makes such a break show
+# up as a red check on the PR, instead of being discovered after the fact
+# by fpv-sim-mcp's weekly upstream-drift run (which is the mirror-image
+# check on that side). It is a status check, not a hard block: a failing
+# run only prevents merging if branch protection makes this job required.
+#
+# What it does: checks out this PR's index.html and fpv-sim-mcp main side
+# by side, proves fpv-sim-mcp's engine reproduces its own committed
+# fixtures (sanity), regenerates those fixtures from THIS index.html, and
+# fails if the regenerated runs differ from the committed ones.
+#
+# Distinct failures, checked in order:
+#   1. "Regenerate fixtures" fails -> index.html no longer loads/runs
+#                                     headlessly (unguarded browser-only
+#                                     API, syntax error, ...).
+#   2. Regenerated != committed    -> either a Behavior-changing edit (an
+#                                     outcome / timeline / state changed for
+#                                     a featured seed) or an event-log-only
+#                                     change (addLog wording or timing).
+#                                     The failure output says which, per
+#                                     seed, and gives the remediation.
+#
+# Behavior-changing and intended: flag the CHANGELOG.md entry
+# "Behavior-changing"; in fpv-sim-mcp update the engine to match, run
+# `npm run goldens`, and update docs/upstream/SNAPSHOT.md; rerun the Monte
+# Carlo study here. Event-log-only: same fpv-sim-mcp steps (mirror the
+# text, regenerate, SNAPSHOT.md), no study rerun, not Behavior-changing.
+# Not intended: the edit touched the RNG draw order or simulation state —
+# find and fix it.
+#
+# Sequencing: this compares against fpv-sim-mcp MAIN, and fpv-sim-mcp's
+# upstream-drift compares against THIS repo's main, so an intended change
+# is necessarily red on one side until the other lands. Merge the fpv-sim
+# PR first (red expected), then the fpv-sim-mcp PR that regenerates the
+# fixtures; the next parity run goes green.
+
+name: parity
+
+on:
+  pull_request:
+    paths: [index.html]
+  push:
+    branches: [main]
+    paths: [index.html]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      # fpv-sim-mcp's fixture generator resolves the spec at ../fpv-sim
+      # relative to its own repo root, so the two checkouts must be siblings.
+      - name: Check out this repo (the index.html under test)
+        uses: actions/checkout@v5
+        with:
+          path: fpv-sim
+
+      - name: Check out fpv-sim-mcp (main)
+        uses: actions/checkout@v5
+        with:
+          repository: wasomma/fpv-sim-mcp
+          ref: main
+          path: fpv-sim-mcp
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Install fpv-sim-mcp
+        working-directory: fpv-sim-mcp
+        run: npm ci
+
+      - name: fpv-sim-mcp engine reproduces its committed fixtures (sanity)
+        working-directory: fpv-sim-mcp
+        run: npm test
+
+      - name: Regenerate fixtures from this index.html
+        working-directory: fpv-sim-mcp
+        run: |
+          cp test/fixtures/golden-seeds.json /tmp/committed-goldens.json
+          if ! npm run goldens; then
+            echo "::error::index.html no longer loads/runs headlessly in fpv-sim-mcp's fixture generator (a Node vm with inert document/window proxies, performance and console only — no location, URLSearchParams, etc.). Guard browser-only APIs with try/catch (see the deep-link init code for the pattern) so the <script> block still loads without a DOM."
+            exit 1
+          fi
+
+      - name: This index.html reproduces fpv-sim-mcp's committed fixtures
+        working-directory: fpv-sim-mcp
+        # _meta carries a generation timestamp and the source commit, so
+        # only the runs payload is compared — the same pass/fail check
+        # fpv-sim-mcp's upstream-drift workflow makes, seen from this side.
+        # On failure, each differing seed is classified: outcome/state
+        # changed (Behavior-changing) vs event log only (addLog wording or
+        # timing), because the remediation differs.
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const committed = JSON.parse(fs.readFileSync("/tmp/committed-goldens.json", "utf8"));
+            const fresh = JSON.parse(fs.readFileSync("test/fixtures/golden-seeds.json", "utf8"));
+            const pin = committed._meta.source_commit.slice(0, 7);
+            const here = fresh._meta.source_commit.slice(0, 7);
+            if (JSON.stringify(committed.runs) === JSON.stringify(fresh.runs)) {
+              console.log("Parity holds: this index.html (" + here + ") reproduces the fpv-sim-mcp golden fixtures pinned at " + pin + ".");
+              process.exit(0);
+            }
+            console.error("PARITY BREAK: this index.html (" + here + ") no longer reproduces the fpv-sim-mcp golden fixtures (pinned at " + pin + ").");
+            const sansEvents = (r) => JSON.stringify({ ...r, events: undefined });
+            const summary = (r) => r.seed + ": " + r.winner + " @ T+" + r.endT + " s, " + r.events.length + " events";
+            let stateChanged = false;
+            for (let i = 0; i < Math.max(committed.runs.length, fresh.runs.length); i++) {
+              const a = committed.runs[i], b = fresh.runs[i];
+              if (JSON.stringify(a) === JSON.stringify(b)) continue;
+              const logOnly = a && b && sansEvents(a) === sansEvents(b);
+              if (!logOnly) stateChanged = true;
+              console.error("  seed " + (a ? summary(a) : "(missing)") + "  ->  " + (b ? summary(b) : "(missing)") + "   [" + (logOnly ? "event log only" : "outcome/state changed") + "]");
+            }
+            if (stateChanged) {
+              console.error("Engagement outcome, timeline, or state changed for at least one featured seed: this is a Behavior-changing edit.");
+              console.error(
+                "If intended: flag the CHANGELOG.md entry Behavior-changing; in fpv-sim-mcp update the engine to match, run " +
+                "npm run goldens, and update docs/upstream/SNAPSHOT.md; then rerun the Monte Carlo study here " +
+                "(scripts/monte-carlo-study.mjs). If not intended: the edit touched the RNG draw order or simulation " +
+                "state - find and fix it."
+              );
+            } else {
+              console.error(
+                "Outcomes and state are unchanged; only the event log differs (addLog wording or timing). Not " +
+                "Behavior-changing, no study rerun - but the fpv-sim-mcp contract is string-equal events, so mirror " +
+                "the change in its engine (src/engine), run npm run goldens there, and update docs/upstream/SNAPSHOT.md."
+              );
+            }
+            console.error(
+              "Sequencing: this check compares against fpv-sim-mcp main, and its upstream-drift check compares against " +
+              "this repo main, so an intended change is red on one side until the other lands. Merge this PR first " +
+              "(red expected), then the fpv-sim-mcp PR that regenerates the fixtures; the next parity run goes green."
+            );
+            process.exit(1);
+          '

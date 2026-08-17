@@ -23,14 +23,32 @@ generated FROM this file. Consequences:
   fixture generator runs it in a Node vm with only `document`/`window`
   (inert proxies), `performance`, `console` — no `location`,
   `URLSearchParams`, etc. Guard browser-only APIs with try/catch (see the
-  deep-link init code for the pattern). fpv-sim-mcp's weekly
-  `upstream-drift` workflow catches violations after the fact; testing
-  `npm run goldens` there before merging catches them before.
+  deep-link init code for the pattern).
+- Both violations surface as a red check on the PR: this repo's `parity`
+  workflow (`.github/workflows/parity.yml`) runs on every pull request
+  that touches `index.html` (and on pushes to `main` that touch it),
+  checks out fpv-sim-mcp main alongside, regenerates its golden fixtures
+  from the PR's `index.html`, and fails if any featured seed's recorded
+  run differs — outcome, timeline, per-team state, *or event-log text*
+  (that repo's contract is string-equal events, so rewording an `addLog`
+  line trips it too; the failure output classifies each seed and gives
+  the matching remediation) — or if the file no longer loads headlessly.
+  fpv-sim-mcp's `upstream-drift` workflow is the mirror check on its side
+  (per-PR there, plus weekly). An intended behavior change is necessarily
+  red here until the matching fpv-sim-mcp PR lands: merge this side
+  first, then that PR. Neither check is a required status check (no
+  branch protection is configured); making `parity` required as-is would
+  strand PRs that do not touch `index.html`, because path-filtered runs
+  stay Pending. To check before pushing, run `npm run goldens` in a
+  sibling fpv-sim-mcp checkout and confirm `git diff` there shows only
+  `_meta` changes.
 
 ## Layout
 
 - `index.html` — the entire sim application (zero deps, GitHub Pages
   serves it at the root URL). Supports `?seed=<n>&play=1` deep links.
+- `.github/workflows/parity.yml` — the parity check described above;
+  `workflow_dispatch` runs it on demand against any branch.
 - `dashboard.html` — companion results viewer, equally single-file; reads
   `results/index.json` (manifest) and the datasets it lists.
 - `viewer3d.html` — experimental WebGPU 3D viewer. Contains NO simulation

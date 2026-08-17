@@ -14,6 +14,23 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
+### Added
+- `parity` GitHub Actions workflow (`.github/workflows/parity.yml`): on
+  every pull request that touches `index.html` (and on pushes to `main`
+  that touch it), it checks out fpv-sim-mcp `main` beside this repo,
+  regenerates that repo's golden fixtures from the PR's `index.html`,
+  and fails if any featured seed's recorded run differs (outcome,
+  timeline, per-team state, or event-log text) — or if the file no
+  longer loads headlessly; the failure output classifies each seed
+  (Behavior-changing vs event-log-only) with the matching remediation
+  and the cross-repo merge order. Behavior-changing edits and unguarded
+  browser-only APIs now show up as a red check on the PR rather than in
+  fpv-sim-mcp's weekly drift run after the fact; that repo's
+  `upstream-drift` workflow gained the matching per-PR trigger, so
+  divergence between the two repos surfaces before merge on either side.
+  (A status check, not a hard block — neither repo has branch protection
+  requiring it.)
+
 ### Docs
 - DESIGN_NOTES.md corrected against the code (no code change): emplacement
   jitter is ±60 m per axis, not ±120 m; `pathAtten` samples 13 interior
