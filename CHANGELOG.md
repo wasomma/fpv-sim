@@ -28,8 +28,9 @@ Monte Carlo results — such a change is called out explicitly as
   fpv-sim-mcp's weekly drift run after the fact; that repo's
   `upstream-drift` workflow gained the matching per-PR trigger, so
   divergence between the two repos surfaces before merge on either side.
-  (A status check, not a hard block — neither repo has branch protection
-  requiring it.)
+  `parity` is advisory here (a path-filtered check cannot safely be made
+  required); on the fpv-sim-mcp side the `drift` job is a required status
+  check on `main`, so a red run there blocks the merge.
 
 ### Docs
 - DESIGN_NOTES.md corrected against the code (no code change): emplacement

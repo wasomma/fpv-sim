@@ -34,14 +34,15 @@ generated FROM this file. Consequences:
   line trips it too; the failure output classifies each seed and gives
   the matching remediation) — or if the file no longer loads headlessly.
   fpv-sim-mcp's `upstream-drift` workflow is the mirror check on its side
-  (per-PR there, plus weekly). An intended behavior change is necessarily
-  red here until the matching fpv-sim-mcp PR lands: merge this side
-  first, then that PR. Neither check is a required status check (no
-  branch protection is configured); making `parity` required as-is would
-  strand PRs that do not touch `index.html`, because path-filtered runs
-  stay Pending. To check before pushing, run `npm run goldens` in a
-  sibling fpv-sim-mcp checkout and confirm `git diff` there shows only
-  `_meta` changes.
+  (per-PR there, plus weekly), and there it is a *required* status check
+  on `main` — a red run blocks the merge. An intended behavior change is
+  necessarily red here until the matching fpv-sim-mcp PR lands: merge
+  this side first, then that PR (which is unmergeable until upstream
+  main carries the change). `parity` itself is advisory, not required:
+  making a path-filtered check required would strand PRs that do not
+  touch `index.html`, because skipped runs stay Pending. To check before
+  pushing, run `npm run goldens` in a sibling fpv-sim-mcp checkout and
+  confirm `git diff` there shows only `_meta` changes.
 
 ## Layout
 
