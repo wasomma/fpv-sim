@@ -91,8 +91,13 @@ jobs:
 
       - name: Regenerate fixtures from this index.html
         working-directory: fpv-sim-mcp
+        # Both fixture sets are checked when fpv-sim-mcp main carries them:
+        # orbit (golden-seeds.json) and tactical (golden-seeds-tactical.json).
         run: |
           cp test/fixtures/golden-seeds.json /tmp/committed-goldens.json
+          if [ -f test/fixtures/golden-seeds-tactical.json ]; then
+            cp test/fixtures/golden-seeds-tactical.json /tmp/committed-goldens-tactical.json
+          fi
           if ! npm run goldens; then
             echo "::error::index.html no longer loads/runs headlessly in fpv-sim-mcp's fixture generator (a Node vm with inert document/window proxies, performance and console only — no location, URLSearchParams, etc.). Guard browser-only APIs with try/catch (see the deep-link init code for the pattern) so the <script> block still loads without a DOM."
             exit 1
@@ -109,25 +114,33 @@ jobs:
         run: |
           node -e '
             const fs = require("node:fs");
-            const committed = JSON.parse(fs.readFileSync("/tmp/committed-goldens.json", "utf8"));
-            const fresh = JSON.parse(fs.readFileSync("test/fixtures/golden-seeds.json", "utf8"));
-            const pin = committed._meta.source_commit.slice(0, 7);
-            const here = fresh._meta.source_commit.slice(0, 7);
-            if (JSON.stringify(committed.runs) === JSON.stringify(fresh.runs)) {
-              console.log("Parity holds: this index.html (" + here + ") reproduces the fpv-sim-mcp golden fixtures pinned at " + pin + ".");
-              process.exit(0);
-            }
-            console.error("PARITY BREAK: this index.html (" + here + ") no longer reproduces the fpv-sim-mcp golden fixtures (pinned at " + pin + ").");
+            const sets = [
+              ["orbit", "/tmp/committed-goldens.json", "test/fixtures/golden-seeds.json"],
+              ["tactical", "/tmp/committed-goldens-tactical.json", "test/fixtures/golden-seeds-tactical.json"],
+            ].filter(([, c]) => fs.existsSync(c));
             const sansEvents = (r) => JSON.stringify({ ...r, events: undefined });
-            const summary = (r) => r.seed + ": " + r.winner + " @ T+" + r.endT + " s, " + r.events.length + " events";
-            let stateChanged = false;
-            for (let i = 0; i < Math.max(committed.runs.length, fresh.runs.length); i++) {
-              const a = committed.runs[i], b = fresh.runs[i];
-              if (JSON.stringify(a) === JSON.stringify(b)) continue;
-              const logOnly = a && b && sansEvents(a) === sansEvents(b);
-              if (!logOnly) stateChanged = true;
-              console.error("  seed " + (a ? summary(a) : "(missing)") + "  ->  " + (b ? summary(b) : "(missing)") + "   [" + (logOnly ? "event log only" : "outcome/state changed") + "]");
+            const summary = (r) => r.seed + ": " + (r.winner ?? "STALEMATE") + " @ T+" + r.endT + " s, " + r.events.length + " events";
+            let stateChanged = false, broke = false;
+            for (const [label, committedPath, freshPath] of sets) {
+              const committed = JSON.parse(fs.readFileSync(committedPath, "utf8"));
+              const fresh = JSON.parse(fs.readFileSync(freshPath, "utf8"));
+              const pin = committed._meta.source_commit.slice(0, 7);
+              const here = fresh._meta.source_commit.slice(0, 7);
+              if (JSON.stringify(committed.runs) === JSON.stringify(fresh.runs)) {
+                console.log("Parity holds (" + label + "): this index.html (" + here + ") reproduces the fpv-sim-mcp golden fixtures pinned at " + pin + ".");
+                continue;
+              }
+              broke = true;
+              console.error("PARITY BREAK (" + label + "): this index.html (" + here + ") no longer reproduces the fpv-sim-mcp golden fixtures (pinned at " + pin + ").");
+              for (let i = 0; i < Math.max(committed.runs.length, fresh.runs.length); i++) {
+                const a = committed.runs[i], b = fresh.runs[i];
+                if (JSON.stringify(a) === JSON.stringify(b)) continue;
+                const logOnly = a && b && sansEvents(a) === sansEvents(b);
+                if (!logOnly) stateChanged = true;
+                console.error("  seed " + (a ? summary(a) : "(missing)") + "  ->  " + (b ? summary(b) : "(missing)") + "   [" + (logOnly ? "event log only" : "outcome/state changed") + "]");
+              }
             }
+            if (!broke) process.exit(0);
             if (stateChanged) {
               console.error("Engagement outcome, timeline, or state changed for at least one featured seed: this is a Behavior-changing edit.");
               console.error(
