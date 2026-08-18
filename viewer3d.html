@@ -218,15 +218,13 @@
             <button data-spd="4" class="active">4x</button>
             <button data-spd="8">8x</button>
           </div>
+          <div class="ctl-lbl">Mode</div>
+          <div class="ctl-row" id="modeGrp" title="Orbit: one FPV per side holds a forward orbit. Tactical: strike-sortie packages into a shared objective. Switching keeps the seed.">
+            <button data-mode="orbit" class="active">Orbit</button>
+            <button data-mode="tactical">Tactical</button>
+          </div>
           <div class="ctl-lbl"><label for="scenario" style="cursor:pointer">Scenario</label></div>
-          <select id="scenario" title="Featured engagements">
-            <option value="20260719">Standard Engagement (BLUFOR)</option>
-            <option value="66">Discipline Wins, Fast (BLUFOR)</option>
-            <option value="57">Deliberate Fix (BLUFOR)</option>
-            <option value="41">OPFOR Prevails</option>
-            <option value="59">Close Race (OPFOR)</option>
-            <option value="custom" hidden>Custom Seed</option>
-          </select>
+          <select id="scenario" title="Featured engagements"></select>
           <div class="ctl-lbl">Scene Layers</div>
           <div class="toggles">
             <label><input type="checkbox" id="tglLOB" checked> LOBs</label>
@@ -283,7 +281,42 @@
    ===================================================================== */
 
 const $ = id => document.getElementById(id);
-const FEATURED = ["20260719", "66", "57", "41", "59"];
+// Featured scenarios per mode, mirroring the 2D sim's FEATURED table; the
+// first entry is each mode's default seed.
+const FEATURED = {
+  orbit: [
+    ["20260719", "Standard Engagement (BLUFOR)"],
+    ["66", "Discipline Wins, Fast (BLUFOR)"],
+    ["57", "Deliberate Fix (BLUFOR)"],
+    ["41", "OPFOR Prevails"],
+    ["59", "Close Race (OPFOR)"],
+  ],
+  tactical: [
+    ["12", "Standard Engagement (BLUFOR)"],
+    ["26", "Discipline Wins, Fast (BLUFOR)"],
+    ["5", "Final Push (BLUFOR)"],
+    ["18", "Close Race (BLUFOR)"],
+    ["41", "OPFOR Prevails"],
+    ["14", "Lopsided Collection (Stalemate)"],
+  ],
+};
+let mode = "orbit"; // the viewer's engagement plan; passed to every resetSim
+// Both modes through one lens: orbit exposes the single T.drone, tactical
+// the T.drones package. Render code iterates this everywhere.
+const dronesOf = T => T.drones || (T.drone ? [T.drone] : []);
+
+function populateScenarios(){
+  const sel = $("scenario");
+  sel.innerHTML = "";
+  for (const [seed, label] of FEATURED[mode]){
+    const o = document.createElement("option");
+    o.value = seed; o.textContent = label;
+    sel.appendChild(o);
+  }
+  const c = document.createElement("option");
+  c.value = "custom"; c.hidden = true; c.textContent = "Custom Seed";
+  sel.appendChild(c);
+}
 
 /* ------------------- engine loader (inert-DOM harness) --------------- */
 // Universal inert proxy: callable, any property access returns itself,
@@ -565,9 +598,9 @@ let playing = false, speed = 4, acc = 0, lastTs = 0;
 let endShownLocal = false;
 let logCount = 0;
 const RFTEX_N = 256;
-const trailsV = { BLUFOR: [], OPFOR: [] };  // viewer-side trails with altitude
-const trailAccV = { BLUFOR: 0, OPFOR: 0 };
-const prevD = { BLUFOR: null, OPFOR: null }; // previous-tick drone snapshot for interp
+let trailsV = {};   // viewer-side trails with altitude, keyed by drone id
+let trailAccV = {};
+let prevD = {};     // previous-tick drone snapshots for interp, keyed by drone id
 const cam = { yaw: 0.62, pitch: 0.88, dist: 4600, tx: 2000, ty: 40, tz: -2000 };
 const CAM0 = { ...cam };
 let VP = null;  // current view-projection matrix (for labels)
@@ -967,9 +1000,8 @@ const dynLines = new DynBuf(1 << 18);
 const dynSolid = new DynBuf(1 << 16);
 const dynTrn = new DynBuf(1 << 15);
 
-function droneRenderPos(side, alpha){
-  const d = E.state.teams[side].drone;
-  const p = prevD[side];
+function droneRenderPos(d, alpha){
+  const p = prevD[d.id];
   if (!p || !d.launched) return { x: d.x, y: d.y, agl: d.agl, hdg: d.hdg };
   return {
     x: p.x + (d.x - p.x) * alpha,
@@ -1020,19 +1052,22 @@ function buildDynamic(alpha){
       }
     }
 
-    // Flight trail (viewer-side, altitude-aware).
+    // Flight trails (viewer-side, altitude-aware; one per airframe).
     if ($("tglPATH").checked){
-      const tr = trailsV[side];
-      for (let i = 1; i < tr.length; i++){
-        lineInto(dynLines, tr[i - 1].x, tr[i - 1].h, -tr[i - 1].y, tr[i].x, tr[i].h, -tr[i].y, ...col, 0.30);
+      for (const d of dronesOf(T)){
+        const tr = trailsV[d.id];
+        if (!tr) continue;
+        for (let i = 1; i < tr.length; i++){
+          lineInto(dynLines, tr[i - 1].x, tr[i - 1].h, -tr[i - 1].y, tr[i].x, tr[i].h, -tr[i].y, ...col, 0.30);
+        }
       }
     }
 
-    // Drone dart at true (interpolated) position/altitude.
-    {
-      const d = T.drone;
+    // Drone darts at true (interpolated) position/altitude — the single
+    // orbit airframe, or every airborne airframe of the tactical package.
+    for (const d of dronesOf(T)){
       if (d.launched && d.state !== "IMPACT"){
-        const p = droneRenderPos(side, alpha);
+        const p = droneRenderPos(d, alpha);
         const ge = Math.max(E.elevAt(p.x, p.y), 0);
         const y = ge + Math.max(p.agl, 1.5);
         const f = [Math.sin(p.hdg), 0, -Math.cos(p.hdg)];
@@ -1098,10 +1133,11 @@ function buildDynamic(alpha){
       lineInto(dynLines, c0[0], c0[2] + 1, -c0[1] + 18, c0[0], c0[2] + 1, -c0[1] - 18, ...col, 0.8);
     }
 
-    // Enemy-drone track diamond (from video DL intercepts), floats mid-air.
+    // Enemy-drone track diamonds (from video DL intercepts), float mid-air:
+    // the single orbit track, or one per tracked airframe in tactical mode.
     {
-      const tk = T.droneTrack;
-      if (tk){
+      const tracks = T.tracks ? Object.values(T.tracks) : (T.droneTrack ? [T.droneTrack] : []);
+      for (const tk of tracks){
         const age = st.t - tk.t;
         if (age <= 8){
           const a = (1 - age / 8) * 0.7;
@@ -1114,6 +1150,14 @@ function buildDynamic(alpha){
         }
       }
     }
+  }
+
+  // Tactical objective: draped dashed ring + center mark in the RF accent.
+  if (st.obj){
+    drapeCircle(dynLines, st.obj.x, st.obj.y, st.obj.r, 5, ...colRF, 0.55, true);
+    const oe = Math.max(E.elevAt(st.obj.x, st.obj.y), 0);
+    lineInto(dynLines, st.obj.x - 24, oe + 4, -st.obj.y, st.obj.x + 24, oe + 4, -st.obj.y, ...colRF, 0.7);
+    lineInto(dynLines, st.obj.x, oe + 4, -st.obj.y + 24, st.obj.x, oe + 4, -st.obj.y - 24, ...colRF, 0.7);
   }
 
   // RF pulses (expanding draped rings at each emitter keying event).
@@ -1270,17 +1314,22 @@ function updateLabels(alpha){
         const ny = Math.max(E.elevAt(nd.x, nd.y), 0);
         put(nd.x, ny + 52, -nd.y, nd.id.replace(side + "-", ""), T.color);
       }
-      const d = T.drone;
-      if (d.launched && d.state !== "IMPACT" && !d.downed){
-        const p = droneRenderPos(side, alpha);
-        const y = Math.max(E.elevAt(p.x, p.y), 0) + Math.max(p.agl, 1.5);
-        put(p.x, y + 16, -p.y,
-          "sUAS-1" + (d.videoOn ? ' <span class="tx">TX</span>' : ""), T.color);
+      for (const d of dronesOf(T)){
+        if (d.launched && d.state !== "IMPACT" && !d.downed){
+          const p = droneRenderPos(d, alpha);
+          const y = Math.max(E.elevAt(p.x, p.y), 0) + Math.max(p.agl, 1.5);
+          put(p.x, y + 16, -p.y,
+            d.id.slice(side.length + 1) + (d.videoOn ? ' <span class="tx">TX</span>' : ""), T.color);
+        }
       }
       if ($("tglELL").checked && T.est.solved && T.est.cep < 1600){
         const ey = Math.max(E.elevAt(T.est.p.x, T.est.p.y), 0);
         put(T.est.p.x, ey + 26, -T.est.p.y, "CEP " + Math.round(T.est.cep) + "M", T.color);
       }
+    }
+    if (st.obj){
+      const oy = Math.max(E.elevAt(st.obj.x, st.obj.y), 0);
+      put(st.obj.x, oy + 34, -st.obj.y, st.obj.name, E.CONFIG.COLORS.RF);
     }
   }
   for (let i = used; i < lblPool.length; i++) lblPool[i].style.display = "none";
@@ -1291,22 +1340,37 @@ function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); 
 function updateCards(){
   const C = E.CONFIG;
   for (const side of ["BLUFOR", "OPFOR"]){
-    const T = E.state.teams[side], d = T.drone;
+    const T = E.state.teams[side];
     const el = side === "BLUFOR" ? $("cardB") : $("cardO");
     el.style.borderColor = T.color + "8c";
-    const dState = !d.launched ? "PREFLIGHT" : d.downed ? "DOWN" : d.state;
-    const hot = d.state === "COMMIT" || d.state === "TERMINAL";
     let stTxt = "SEARCHING", stCol = "";
     if (T.gcs.destroyed){ stTxt = "GCS DESTROYED"; stCol = C.COLORS.OPFOR; }
     else if (T.flags.committed){ stTxt = "ATTACK COMMITTED"; stCol = C.COLORS.RF; }
     else if (T.flags.fixed) stTxt = "FIX HELD";
     else if (T.flags.crossFix) stTxt = "CROSS-FIX FORMING";
     else if (T.flags.firstLOB) stTxt = "COLLECTING";
+    let airRow;
+    if (T.drones){
+      // Tactical: package tally + airborne count; hunter battery when aloft.
+      const airborne = T.drones.filter(d => d.launched && !d.downed && d.state !== "IMPACT").length;
+      const hk = T.hunter;
+      const hkHot = hk && hk.launched && !hk.downed && hk.state !== "IMPACT";
+      airRow =
+        `<div class="row"><span class="k">PKG ${T.flown}/${C.TACTICAL.SORTIES[side]} FLOWN · ${T.delivered} ON TGT</span>` +
+        `<span style="color:${hkHot ? C.COLORS.RF : "inherit"}">` +
+        `${hkHot ? "HK BATT " + Math.round(hk.batt) + "%" : airborne + " AIRBORNE"}</span></div>`;
+    } else {
+      const d = T.drone;
+      const dState = !d.launched ? "PREFLIGHT" : d.downed ? "DOWN" : d.state;
+      const hot = d.state === "COMMIT" || d.state === "TERMINAL";
+      airRow =
+        `<div class="row"><span class="k">sUAS-1 ${dState}</span><span style="color:${hot ? C.COLORS.RF : (d.batt < 30 && d.launched ? C.COLORS.OPFOR : "inherit")}">` +
+        `${d.launched && !d.downed ? "BATT " + Math.round(d.batt) + "%" : "--"}</span></div>`;
+    }
     el.innerHTML =
       `<div class="hd"><span style="color:${T.color}">${side}</span>` +
       `<span style="color:${T.emcon.emconLabel === "CONTINUOUS" ? C.COLORS.RF : "var(--dim)"}">EMCON ${T.emcon.emconLabel}</span></div>` +
-      `<div class="row"><span class="k">sUAS-1 ${dState}</span><span style="color:${hot ? C.COLORS.RF : (d.batt < 30 && d.launched ? C.COLORS.OPFOR : "inherit")}">` +
-      `${d.launched && !d.downed ? "BATT " + Math.round(d.batt) + "%" : "--"}</span></div>` +
+      airRow +
       `<div class="row"><span class="k">LOBS ${T.meas.length}</span><span>` +
       `${T.est.solved && T.est.cep < 1600 ? "CEP " + Math.round(T.est.cep) + "M" : "NO FIX"}</span></div>` +
       `<div class="row"><span class="k">STATUS</span><span style="color:${stCol || "inherit"}">${stTxt}</span></div>`;
@@ -1330,29 +1394,48 @@ function updateLog(){
 function updatePlayBtn(){ $("btnPlay").textContent = playing ? "Pause" : "Play"; }
 
 function showEndcard(){
-  const W = E.state.winner, L = E.state.teams[W].enemy;
-  $("endTitle").textContent = "ENDEX // " + W + " VICTORY";
-  $("endTitle").style.color = E.CONFIG.COLORS[W];
-  const tagline = E.state.teams[W].emcon.emconLabel === "INTERMITTENT"
-    ? "EMISSIONS DISCIPLINE DECIDED THE FIGHT"
-    : "DETECTION TIMELINE DECIDED THE FIGHT";
-  $("endSub").textContent = L + " GCS DESTROYED BY " + W + " sUAS-1 AT " + E.fmtT(E.state.endT) + " // " + tagline;
+  const st = E.state;
+  if (st.winner){
+    const W = st.winner, L = st.teams[W].enemy;
+    $("endTitle").textContent = "ENDEX // " + W + " VICTORY";
+    $("endTitle").style.color = E.CONFIG.COLORS[W];
+    const tagline = st.teams[W].emcon.emconLabel === "INTERMITTENT"
+      ? "EMISSIONS DISCIPLINE DECIDED THE FIGHT"
+      : "DETECTION TIMELINE DECIDED THE FIGHT";
+    const killer = st.killer ? st.killer.slice(W.length + 1) : "sUAS-1";
+    const tally = st.obj
+      ? " // STRIKES ON " + st.obj.name + " " + st.teams.BLUFOR.delivered + "-" + st.teams.OPFOR.delivered
+      : "";
+    $("endSub").textContent = L + " GCS DESTROYED BY " + W + " " + killer + " AT " + E.fmtT(st.endT) + " // " + tagline + tally;
+  } else {
+    // Tactical stalemate: both packages expended, no hunter able to launch.
+    $("endTitle").textContent = "ENDEX // STALEMATE";
+    $("endTitle").style.color = E.CONFIG.COLORS.RF;
+    $("endSub").textContent = "BOTH GCS SURVIVE // STRIKE PACKAGES EXPENDED // " + E.fmtT(st.endT) +
+      " // STRIKES ON " + st.obj.name + " " + st.teams.BLUFOR.delivered + "-" + st.teams.OPFOR.delivered;
+  }
   $("endcard").classList.remove("hidden");
 }
 
 /* --------------------------- sim control ----------------------------- */
-function resetTo(seed, andPlay){
+function resetTo(seed, andPlay, newMode){
+  if (newMode && newMode !== mode){
+    mode = newMode;
+    populateScenarios();
+    document.querySelectorAll("#modeGrp button").forEach(b =>
+      b.classList.toggle("active", b.dataset.mode === mode));
+  }
   E.events.length = 0;
   logCount = 0; $("log").innerHTML = "";
-  E.resetSim(seed);
-  trailsV.BLUFOR = []; trailsV.OPFOR = [];
-  trailAccV.BLUFOR = 0; trailAccV.OPFOR = 0;
-  prevD.BLUFOR = null; prevD.OPFOR = null;
+  // Always pass the mode: the engine's resetSim(seed) keeps its current
+  // mode, and this page owns which plan is being viewed.
+  E.resetSim(seed, mode);
+  trailsV = {}; trailAccV = {}; prevD = {};
   endShownLocal = false; acc = 0;
   $("endcard").classList.add("hidden");
   $("seedVal").textContent = seed;
   const sel = $("scenario");
-  if (FEATURED.includes(String(seed))){ sel.value = String(seed); }
+  if (FEATURED[mode].some(([s]) => s === String(seed))){ sel.value = String(seed); }
   else { sel.querySelector('option[value="custom"]').hidden = false; sel.value = "custom"; }
   if (gpu) buildStatic();
   playing = !!andPlay;
@@ -1363,19 +1446,21 @@ function resetTo(seed, andPlay){
 
 function snapshotPrev(){
   for (const side of ["BLUFOR", "OPFOR"]){
-    const d = E.state.teams[side].drone;
-    prevD[side] = { x: d.x, y: d.y, agl: d.agl, hdg: d.hdg };
+    for (const d of dronesOf(E.state.teams[side])){
+      prevD[d.id] = { x: d.x, y: d.y, agl: d.agl, hdg: d.hdg };
+    }
   }
 }
 function postStep(dt){
   for (const side of ["BLUFOR", "OPFOR"]){
-    const d = E.state.teams[side].drone;
-    trailAccV[side] += dt;
-    if (d.launched && !d.downed && d.spd > 1 && trailAccV[side] >= 0.5){
-      trailAccV[side] = 0;
-      const tr = trailsV[side];
-      tr.push({ x: d.x, y: d.y, h: Math.max(E.elevAt(d.x, d.y), 0) + Math.max(d.agl, 1.5) });
-      if (tr.length > 2200) tr.shift();
+    for (const d of dronesOf(E.state.teams[side])){
+      trailAccV[d.id] = (trailAccV[d.id] ?? 0) + dt;
+      if (d.launched && !d.downed && d.spd > 1 && trailAccV[d.id] >= 0.5){
+        trailAccV[d.id] = 0;
+        const tr = trailsV[d.id] ?? (trailsV[d.id] = []);
+        tr.push({ x: d.x, y: d.y, h: Math.max(E.elevAt(d.x, d.y), 0) + Math.max(d.agl, 1.5) });
+        if (tr.length > 2200) tr.shift();
+      }
     }
   }
 }
@@ -1394,7 +1479,7 @@ function frame(ts){
       acc -= DT;
     }
   }
-  if (E.state.winner && !endShownLocal && E.state.t - E.state.endT > 5){
+  if ((E.state.winner || E.state.stalemate) && !endShownLocal && E.state.t - E.state.endT > 5){
     endShownLocal = true; playing = false; updatePlayBtn();
     showEndcard();
   }
@@ -1485,8 +1570,16 @@ function wireCamera(){
 /* ------------------------------ wiring ------------------------------- */
 function wireUI(){
   $("btnPlay").addEventListener("click", () => {
-    if (E.state.winner && endShownLocal) return;
+    if ((E.state.winner || E.state.stalemate) && endShownLocal) return;
     playing = !playing; updatePlayBtn();
+  });
+  // Mode switch keeps the seed: same terrain and emplacements, different
+  // air plan — the most direct way to compare the two.
+  document.querySelectorAll("#modeGrp button").forEach(b => {
+    b.addEventListener("click", () => {
+      if (b.dataset.mode === mode) return;
+      resetTo(E.state.seed, true, b.dataset.mode);
+    });
   });
   $("btnReset").addEventListener("click", () => resetTo(E.state.seed, false));
   $("btnCam").addEventListener("click", () => Object.assign(cam, CAM0));
@@ -1528,20 +1621,24 @@ function wireUI(){
     gpu = null;
   }
 
-  // Deep link: same contract as the 2D sim (?seed=<n>&play=1).
-  let qsSeed = NaN, qsPlay = false;
+  // Deep link: same contract as the 2D sim (?seed=<n>&play=1&mode=tactical).
+  let qsSeed = NaN, qsPlay = false, qsMode = "";
   try {
     const qs = new URLSearchParams(location.search);
     qsSeed = Number.parseInt(qs.get("seed") ?? "", 10);
     qsPlay = qs.get("play") === "1";
+    qsMode = String(qs.get("mode") ?? "");
   } catch { /* no deep link */ }
-  const seed = Number.isFinite(qsSeed) && qsSeed >= 0 ? qsSeed : E.CONFIG.SEED;
+  const initMode = qsMode === "tactical" ? "tactical" : "orbit";
+  const seed = Number.isFinite(qsSeed) && qsSeed >= 0 ? qsSeed
+    : (initMode === "tactical" ? Number(FEATURED.tactical[0][0]) : E.CONFIG.SEED);
 
   if (navigator.maxTouchPoints > 0){
     $("camhint").textContent = "DRAG ORBIT // PINCH ZOOM // TWO-FINGER PAN";
   }
+  populateScenarios();
   wireUI();
-  resetTo(seed, qsPlay && !!gpu);
+  resetTo(seed, qsPlay && !!gpu, initMode);
 
   if (!gpu){
     fatal("WEBGPU UNAVAILABLE",
@@ -1581,19 +1678,27 @@ function wireUI(){
       cx.putImageData(img, 0, 0);
       return c2.toDataURL("image/png");
     },
-    runHeadless(seedN, maxT = 3600){
+    runHeadless(seedN, maxT = 3600, modeN = "orbit"){
+      // Explicit mode always: the engine's resetSim(seed) keeps its current
+      // mode, and this hook must reproduce the requested fixture set no
+      // matter what the viewer was last showing.
       E.events.length = 0;
-      E.resetSim(seedN);
+      E.resetSim(seedN, modeN);
       let g = 0;
-      while (!E.state.winner && E.state.t < maxT && g++ < 400000) E.stepSim(E.CONFIG.SIM_DT);
-      return {
+      while (!E.state.winner && !E.state.stalemate && E.state.t < maxT && g++ < 400000) E.stepSim(E.CONFIG.SIM_DT);
+      const r = {
         seed: seedN,
         winner: E.state.winner,
-        endT: E.state.winner ? Math.round(E.state.endT * 10) / 10 : null,
+        endT: E.state.endT !== null ? Math.round(E.state.endT * 10) / 10 : null,
         duration: Math.round(E.state.t * 10) / 10,
         events: E.events.length,
         lobs: { BLUFOR: E.state.teams.BLUFOR.meas.length, OPFOR: E.state.teams.OPFOR.meas.length },
       };
+      if (modeN === "tactical"){
+        r.stalemate = E.state.stalemate;
+        r.delivered = { BLUFOR: E.state.teams.BLUFOR.delivered, OPFOR: E.state.teams.OPFOR.delivered };
+      }
+      return r;
     },
   };
 
