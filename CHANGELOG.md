@@ -15,6 +15,44 @@ Monte Carlo results — such a change is called out explicitly as
 ## [Unreleased]
 
 ### Added
+- **Tactical mode** — a second, selectable engagement plan on the same
+  terrain, sensors, fix math and terminal guidance (Mode buttons in the
+  sidebar; `?mode=tactical` deep link). Instead of one FPV per side
+  holding a forward orbit while the DF nodes work, each side pushes a
+  package of one-way FPV strike sorties (default 5, plus one airframe
+  held in reserve as a hunter-killer; 2 pilot stations = 2 airborne at
+  once) into a shared contested objective, OBJ TANTO, midway between the
+  GCS. Every sortie keys its GCS's C2 uplink — per the team's EMCON
+  schedule while transiting autonomously, continuously once the pilot
+  takes manual control for the terminal run — so the more a side flies,
+  the more its GCS emits, and the enemy DF nodes fix it sortie by sortie.
+  When the fix meets the commit gate the reserve hunter-killer launches
+  against it (needing a free pilot station; it takes priority over the
+  next strike launch); once a side's package is expended it goes on the
+  best fix it holds (`PUSH_CEP_M`, the bingo-fuel commit by another
+  route). Win: enemy GCS destroyed, as before. New end state: STALEMATE,
+  when both packages are expended and neither side can launch a hunter.
+  Strikes delivered on the objective are tallied per side (HUD, GCS
+  panel, end card). All knobs are in `CONFIG.TACTICAL` (package size and
+  pilot stations per side, reserve-or-retask, launch spacing and jitter,
+  objective position/radius, terminal hand-off range, aim scatter).
+  Six featured tactical scenarios ship in the dropdown; the mode switch
+  keeps the seed, so the same emplacement can be watched under both air
+  plans. Over seeds 1–200 the disciplined side wins 27%, the continuous
+  emitter 15%, and 58% stall out — the shorter engagement window (a
+  package is spent in ~7 min) draws more often than the 20-minute orbit
+  fight, and the EMCON edge widens from 1.4:1 to 1.8:1.
+  **Not behavior-changing for the original ("orbit") mode**: `resetSim(seed)`
+  without a mode argument, the golden-fixture generator, the 3D viewer
+  and the study scripts all still run the orbit engine, whose RNG draw
+  order, event text and outcomes are unchanged (fpv-sim-mcp's fixtures
+  regenerate identically). Three pieces of the orbit code were extracted
+  verbatim into helpers now shared by both modes — `collectUplinkLOBs`,
+  `collectDownlink`, `attackGuidance` (the COMMIT/TERMINAL attack run) —
+  and the featured-scenario dropdown is now populated from a per-mode
+  table in the script. Not yet in tactical mode: the fpv-sim-mcp port
+  (its engine, tools and fixtures are orbit-only for now), the Monte
+  Carlo study and dashboard, and the 3D viewer.
 - `parity` GitHub Actions workflow (`.github/workflows/parity.yml`): on
   every pull request that touches `index.html` (and on pushes to `main`
   that touch it), it checks out fpv-sim-mcp `main` beside this repo,

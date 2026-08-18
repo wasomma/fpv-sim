@@ -74,6 +74,7 @@ Open the [live demo](https://wasomma.github.io/fpv-sim/) or just open
 |---|---|
 | Play / Reset | Start, pause, or restart the current engagement |
 | 1x / 2x / 4x / 8x | Playback speed (simulation steps at fixed 0.1 s physics ticks) |
+| Mode | **Orbit** (the original: one FPV per side holds a forward orbit while the DF nodes work) or **Tactical** (each side flies a package of strike sorties into a shared objective; a reserved hunter-killer launches on the GCS fix — see below). Switching keeps the seed, so the same emplacement can be watched under both air plans |
 | RF Coverage | Dashed rings showing each DF node's maximum detection range |
 | LOBs | Recent lines of bearing from DF intercepts (fade over 30 s) |
 | Ellipses | Each side's error ellipse and CEP for its fix on the enemy GCS |
@@ -89,7 +90,7 @@ The event log on the right narrates the engagement in message-traffic style.
 
 ### Featured scenarios
 
-The dropdown ships five curated seeds:
+The dropdown ships curated seeds per mode. Orbit mode:
 
 - **Standard Engagement (BLUFOR)** — the default; a representative disciplined win
 - **Discipline Wins, Fast (BLUFOR)** — EMCON advantage converts quickly
@@ -99,10 +100,29 @@ The dropdown ships five curated seeds:
   other; BLUFOR's is held just above the commit gate by lopsided collection
   (one node holds most of its LOBs), and OPFOR commits and strikes first
 
+Tactical mode:
+
+- **Standard Engagement (BLUFOR)** — both packages fly in full; BLUFOR fixes
+  at T+03:36, launches its hunter-killer at the commit gate at T+05:47 and
+  kills at T+06:56; OPFOR never gets a fix
+- **Discipline Wins, Fast (BLUFOR)** — two sorties are enough: fix at
+  T+01:12, hunter away at T+01:52, impact at T+02:59
+- **Final Push (BLUFOR)** — the fix never reaches the commit gate; with the
+  package expended BLUFOR launches on its best fix (CEP 158 m) and the
+  terminal search recovers the miss
+- **Close Race (BLUFOR)** — both hunter-killers are airborne within 14 s of
+  each other; BLUFOR strikes first
+- **OPFOR Prevails** — the continuous emitter fixes first (same seed as the
+  orbit-mode scenario of that name)
+- **Lopsided Collection (Stalemate)** — BLUFOR holds 33 LOBs but nearly all
+  from one node; the fix never tightens, both packages are spent, both GCS
+  survive
+
 Because the RNG is fully deterministic (seeded `mulberry32`), these are simply
 seeds whose engagements were observed to produce instructive outcomes. The
 Random button explores the full space; interesting seeds can be added to the
-dropdown as new featured scenarios.
+dropdown as new featured scenarios (the per-mode table `FEATURED` at the top
+of the controls code in `index.html`).
 
 ## What's being simulated
 
@@ -126,6 +146,42 @@ The interesting failure modes are real ones: a fix built mostly from one sensor
 has weak along-range constraint and can miss badly; a drone that arrives on a
 bad fix burns battery flying an expanding search; a drone that waits too long
 for a perfect fix runs out of endurance.
+
+### Tactical mode
+
+The **Tactical** mode keeps the terrain, the sensors, the fix math and the
+terminal attack run, and changes the air plan into something closer to a
+real tactical encounter. There is a ground fight both sides are supporting —
+a contested objective, **OBJ TANTO**, midway between the two GCS — and each
+side pushes a package of one-way FPV strike sorties into it (five per side
+by default, launched about 90 s apart, two airborne at once at most because
+each GCS has two pilot stations). A strike sortie transits autonomously at
+cruise, then the pilot takes manual control for the terminal run and the
+airframe is expended on its aim point. One more airframe per side is held
+back as a **hunter-killer**.
+
+Every sortie keys its GCS's C2 uplink: on the team's EMCON schedule while
+transiting autonomously, continuously while under manual control. So the
+more a side flies, the more its GCS emits — and the enemy DF nodes fix it
+sortie by sortie. When a side's fix on the enemy GCS meets the commit gate,
+its hunter-killer launches against it (it needs a free pilot station and
+takes priority over the next strike launch); if the fix never gets that
+good, a side that has spent its whole package launches the hunter on the
+best fix it holds rather than go home with it. Destroying the enemy GCS ends
+the fight as before — and grounds whatever the enemy had left. If both
+packages are spent and neither side can launch a hunter, the result is a
+**stalemate**: both GCS survive.
+
+The tally that matters alongside the winner is *strikes delivered* on the
+objective before the fight ended. Over seeds 1–200 the disciplined side wins
+27%, the continuous emitter 15%, and 58% stall out — the package is spent in
+about seven minutes, a much shorter exposure window than the twenty-minute
+orbit fight, so draws are more common, and the EMCON edge widens from 1.4:1
+to 1.8:1. Package size, pilot stations, launch spacing, whether to hold a
+reserve at all, and the objective itself are all in `CONFIG.TACTICAL`.
+
+Tactical mode is not yet in the headless twin, the Monte Carlo study, the
+dashboard, or the 3D viewer — those still run the orbit engagement.
 
 See **[DESIGN_NOTES.md](DESIGN_NOTES.md)** for the full technical write-up:
 the DF measurement model, the least-squares fix and covariance inflation, the
