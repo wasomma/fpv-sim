@@ -11,7 +11,8 @@
  *
  * Usage:
  *   node scripts/run-sweep.mjs --label "DF bearing error doubled" \
- *     [--start 1] [--count 1000] [--overrides '{"CUAS":{"BRG_SIGMA_DEG":8}}']
+ *     [--start 1] [--count 1000] [--overrides '{"CUAS":{"BRG_SIGMA_DEG":8}}'] \
+ *     [--mode tactical]
  *
  * Deterministic: identical (start, count, overrides) always reproduces
  * the identical dataset. Overrides are validated by the engine the same
@@ -29,6 +30,7 @@ const { values: args } = parseArgs({
     start: { type: "string", default: "1" },
     count: { type: "string", default: "1000" },
     overrides: { type: "string" },
+    mode: { type: "string", default: "orbit" },
   },
 });
 
@@ -42,6 +44,11 @@ const start = Number.parseInt(args.start, 10);
 const count = Number.parseInt(args.count, 10);
 if (!Number.isInteger(start) || start < 0 || !Number.isInteger(count) || count < 1) {
   console.error("--start must be a non-negative integer and --count a positive integer.");
+  process.exit(1);
+}
+const mode = args.mode;
+if (mode !== "orbit" && mode !== "tactical") {
+  console.error('--mode must be "orbit" or "tactical".');
   process.exit(1);
 }
 let overrides;
@@ -58,9 +65,10 @@ const { engine, mcpRoot } = await loadEngine();
 const { runEngagement, aggregateSweep } = engine;
 
 console.error(`Sweeping seeds ${start}–${start + count - 1}` +
+  (mode === "tactical" ? " [tactical]" : "") +
   (overrides ? ` with overrides ${JSON.stringify(overrides)}` : " (stock config)") + "...");
 const t0 = Date.now();
-const results = seeds(start, count).map((s) => runEngagement(s, overrides));
+const results = seeds(start, count).map((s) => runEngagement(s, overrides, { mode }));
 const agg = buildAgg(results, aggregateSweep);
 console.error(`  ${agg.runs} runs in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
   `— B ${agg.outcomes.BLUFOR} / O ${agg.outcomes.OPFOR} / S ${agg.outcomes.STALEMATE}`);
@@ -71,6 +79,7 @@ const outFile = `adhoc-${slug}-${generated.slice(0, 10)}.json`;
 
 const dataset = {
   kind: "adhoc",
+  mode,
   label,
   quick: false,
   meta: {
@@ -91,6 +100,7 @@ writeFileSync(outPath, JSON.stringify(dataset, null, 2));
 registerDataset({
   file: outFile,
   kind: "adhoc",
+  mode,
   label,
   generated,
   sim_commit: dataset.meta.sim_commit,

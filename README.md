@@ -180,8 +180,12 @@ orbit fight, so draws are more common, and the EMCON edge widens from 1.4:1
 to 1.8:1. Package size, pilot stations, launch spacing, whether to hold a
 reserve at all, and the objective itself are all in `CONFIG.TACTICAL`.
 
-Tactical mode is not yet in the headless twin, the Monte Carlo study, the
-dashboard, or the 3D viewer — those still run the orbit engagement.
+Tactical mode runs everywhere the orbit engagement does: the headless twin
+([fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp) — a `mode` input on
+its tools, with its own golden-fixture set), the Monte Carlo study
+(`--mode tactical`, its own committed dataset), the dashboard (TACTICAL
+datasets in the dropdown), and the 3D viewer (Mode buttons /
+`?mode=tactical`).
 
 See **[DESIGN_NOTES.md](DESIGN_NOTES.md)** for the full technical write-up:
 the DF measurement model, the least-squares fix and covariance inflation, the

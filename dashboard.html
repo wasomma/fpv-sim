@@ -228,6 +228,8 @@ function column(svg, x, w, yTop, yBase, color) {
 }
 
 /* ------------------------- views ------------------------------------ */
+const modeOf = (d) => d.mode ?? "orbit"; // pre-mode datasets are orbit runs
+
 function renderTiles(data) {
   const b = data.experiments.baseline;
   const wrap = document.getElementById("tiles");
@@ -236,16 +238,23 @@ function renderTiles(data) {
   // The stock-posture qualifiers only describe the default config; ad-hoc
   // datasets may override EMCON, so they get neutral labels.
   const adhoc = data.kind === "adhoc";
+  const tactical = modeOf(data) === "tactical";
   const tiles = [
     { lbl: adhoc ? "BLUFOR wins" : "BLUFOR wins (disciplined)", col: COL.B, v: pct(b.win_rates.BLUFOR),
       sub: `95% CI ${pct(b.ci95.BLUFOR.lo)} – ${pct(b.ci95.BLUFOR.hi)} · n=${b.runs.toLocaleString()}` },
     { lbl: adhoc ? "OPFOR wins" : "OPFOR wins (continuous)", col: COL.O, v: pct(b.win_rates.OPFOR),
       sub: `95% CI ${pct(b.ci95.OPFOR.lo)} – ${pct(b.ci95.OPFOR.hi)} · n=${b.runs.toLocaleString()}` },
-    { lbl: "Stalemates (nobody fixes)", col: COL.S, v: pct(b.win_rates.STALEMATE),
-      sub: `95% CI ${pct(b.ci95.STALEMATE.lo)} – ${pct(b.ci95.STALEMATE.hi)} · all both-drones-down` },
+    { lbl: tactical ? "Stalemates (packages spent)" : "Stalemates (nobody fixes)", col: COL.S, v: pct(b.win_rates.STALEMATE),
+      sub: `95% CI ${pct(b.ci95.STALEMATE.lo)} – ${pct(b.ci95.STALEMATE.hi)} · ` +
+        (tactical ? "all packages-expended" : "all both-drones-down") },
     { lbl: "Decisive fights won by BLUFOR", col: null, v: pct(b.outcomes.BLUFOR / decisive),
       sub: `${b.outcomes.BLUFOR.toLocaleString()} of ${decisive.toLocaleString()} decisive engagements` },
   ];
+  if (tactical && b.strikes_delivered) {
+    tiles.push({ lbl: "Strikes delivered on the objective", col: null,
+      v: `${b.strikes_delivered.BLUFOR.mean.toFixed(1)} / ${b.strikes_delivered.OPFOR.mean.toFixed(1)}`,
+      sub: `mean per engagement, BLUFOR / OPFOR (medians ${b.strikes_delivered.BLUFOR.median} / ${b.strikes_delivered.OPFOR.median})` });
+  }
   for (const t of tiles) {
     const tile = div("tile", wrap);
     div("lbl", tile, (t.col ? `<span class="swatch" style="background:${t.col}"></span>` : "") + t.lbl);
@@ -315,7 +324,8 @@ function renderPaired(data) {
     { key: "opforAdoptsDiscipline", name: "OPFOR adopts BLUFOR discipline" },
     { key: "postureSwap", name: "Full EMCON posture swap" },
     { key: "launchEqualized", name: "Launch stagger equalized" },
-  ];
+    { key: "reserveVsRetask", name: "No reserve hunter (retask a strike)" }, // tactical studies only
+  ].filter((e) => data.experiments[e.key]);
   const card = chartCard(
     "Paired comparisons — same seeds, one change",
     "Each experiment reruns the identical " + stock.runs.toLocaleString() +
@@ -432,18 +442,20 @@ function renderSeeds(data) {
   const b = data.experiments.baseline.notable_seeds;
   add(adhoc ? "Fastest kill in this sweep" : "Fastest kill in the baseline", b.fastest_kill);
   add(adhoc ? "Slowest kill in this sweep" : "Slowest kill in the baseline", b.slowest_kill);
-  add("A representative stalemate", b.example_stalemate);
+  add("A representative stalemate", b.example_stalemate,
+    modeOf(data) === "tactical" ? "stalemate — packages expended" : undefined);
   const swap = data.experiments.postureSwap?.variant.notable_seeds;
   if (swap) add("Fastest kill with postures swapped", swap.fastest_kill);
   const host = document.getElementById("seeds");
   host.innerHTML = "";
+  const modeParam = modeOf(data) === "tactical" ? "&mode=tactical" : "";
   const t = document.createElement("table");
   t.className = "seeds";
   t.innerHTML = "<tr><th>What it shows</th><th>Seed</th><th>Outcome</th><th></th></tr>" +
     rows.map((r) =>
       `<tr><td>${r.label}</td><td class="num">${r.seed}</td>` +
       `<td class="who-${r.who}">${r.detail}</td>` +
-      `<td><a href="index.html?seed=${r.seed}&play=1">WATCH ▸</a></td></tr>`).join("");
+      `<td><a href="index.html?seed=${r.seed}&play=1${modeParam}">WATCH ▸</a></td></tr>`).join("");
   host.appendChild(t);
 }
 
@@ -455,14 +467,16 @@ function renderProvenance(data, entry) {
       (m.seed_range ? ` · seeds ${m.seed_range.start}–${m.seed_range.start + m.seed_range.count - 1}` : "") +
       (m.overrides ? ` · overrides <code>${JSON.stringify(m.overrides)}</code>` : " · stock config") + "<br>"
     : "";
-  document.getElementById("prov").innerHTML = kindTag +
+  const modeArg = modeOf(data) === "tactical" ? " --mode tactical" : "";
+  const modeTag = modeOf(data) === "tactical" ? "TACTICAL mode (sortie stream) · " : "";
+  document.getElementById("prov").innerHTML = kindTag + modeTag +
     `Dataset: <code>${entry.file}</code> · generated ${m.generated ? m.generated.slice(0, 10) : "?"} · ` +
     `${(m.total_runs ?? 0).toLocaleString()} engagements · ` +
     `sim <code>${short(m.sim_commit)}</code> · engine <code>${short(m.engine_commit)}</code><br>` +
     `Deterministic and reproducible: <code>${data.kind === "adhoc"
       ? `node scripts/run-sweep.mjs --label "${data.label ?? ""}" --start ${m.seed_range?.start ?? 1} --count ${m.seed_range?.count ?? 0}` +
-        (m.overrides ? ` --overrides '${JSON.stringify(m.overrides)}'` : "")
-      : "node scripts/monte-carlo-study.mjs"}</code> regenerates every number ` +
+        (m.overrides ? ` --overrides '${JSON.stringify(m.overrides)}'` : "") + modeArg
+      : "node scripts/monte-carlo-study.mjs" + modeArg}</code> regenerates every number ` +
     `(see <a style="color:var(--blufor-hi)" href="https://github.com/wasomma/fpv-sim/blob/main/MONTE_CARLO.md">MONTE_CARLO.md</a>). ` +
     `All data is notional and unclassified.`;
 }
@@ -504,7 +518,8 @@ async function init() {
     for (const d of list) {
       const o = document.createElement("option");
       o.value = manifest.datasets.indexOf(d);
-      o.textContent = `${kindOf(d) === "adhoc" ? "AD-HOC" : "STUDY"} · ${labelOf(d)} · ` +
+      o.textContent = `${kindOf(d) === "adhoc" ? "AD-HOC" : "STUDY"}` +
+        `${(d.mode ?? "orbit") === "tactical" ? " · TACTICAL" : ""} · ${labelOf(d)} · ` +
         `${d.generated.slice(0, 10)} · ${d.total_runs.toLocaleString()} runs`;
       sel.appendChild(o);
     }

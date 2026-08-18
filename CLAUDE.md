@@ -11,24 +11,25 @@ DEVELOPMENT_HISTORY.md, MONTE_CARLO.md, PARAMETERS.md, CHANGELOG.md.
 [fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp) contains a TypeScript
 port of the simulation core in `index.html` — the engine is everything
 before `RENDERING` (`CONFIG` through the end of the `TACTICAL MODE`
-section); today the port covers the orbit-mode part of it, see below —
-with parity proven by golden-master fixtures generated FROM this file.
+section) — with parity proven by golden-master fixtures generated FROM
+this file.
 
 The engine has two modes, selected by `resetSim(seed, mode)` /
 `state.mode`: `"orbit"` (the original engagement, and the default whenever
-`resetSim(seed)` is called without a mode — which is what the fixture
-generator, the 3D viewer and the study scripts do) and `"tactical"` (the
+`resetSim(seed)` is called without a mode) and `"tactical"` (the
 multi-FPV sortie-stream plan; see DESIGN_NOTES.md "Tactical mode"). The
-parity contract currently covers **orbit mode only**: fpv-sim-mcp's engine,
-tools and fixtures are orbit-only, so tactical-mode behavior can change
-freely for now, while orbit mode's cannot. Orbit-mode code and the shared
-helpers (`collectUplinkLOBs`, `collectDownlink`, `attackGuidance`,
-`updateFix`, RF/terrain, `makeTeam`, the emplacement half of `resetSim`)
-are under the contract; the `TACTICAL MODE` section is not, but must never
-run — or draw from the RNG — when `state.mode === "orbit"`. Porting
-tactical mode to fpv-sim-mcp (engine + a `mode` input on the tools + a
-second fixture set), then extending the study/dashboard and the 3D viewer,
-are the open follow-ups. Consequences:
+parity contract covers **both modes**: fpv-sim-mcp's engine, tools
+(`mode` input) and fixtures span the two (orbit `golden-seeds.json`, five
+featured seeds; tactical `golden-seeds-tactical.json`, six), so a
+same-seed behavior change in either mode is a contract break. All of the
+engine is under the contract — the mode-shared helpers
+(`collectUplinkLOBs`, `collectDownlink`, `attackGuidance`, `updateFix`,
+RF/terrain, `makeTeam`, the emplacement half of `resetSim`) most
+delicately, since both fixture sets cross them — and the `TACTICAL MODE`
+section must never run, or draw from the RNG, when
+`state.mode === "orbit"` (nor tactical setup draws in orbit resets: the
+two modes share every draw through emplacement and diverge at the air
+plan). Consequences:
 
 - Any edit that changes engagement outcomes for a given seed is a
   **breaking change**: it invalidates fpv-sim-mcp's fixtures AND the
@@ -45,8 +46,9 @@ are the open follow-ups. Consequences:
   workflow (`.github/workflows/parity.yml`) runs on every pull request
   that touches `index.html` (and on pushes to `main` that touch it),
   checks out fpv-sim-mcp main alongside, regenerates its golden fixtures
-  from the PR's `index.html`, and fails if any featured seed's recorded
-  run differs — outcome, timeline, per-team state, *or event-log text*
+  (both sets) from the PR's `index.html`, and fails if any featured
+  seed's recorded run differs — outcome, timeline, per-team state, *or
+  event-log text*
   (that repo's contract is string-equal events, so rewording an `addLog`
   line trips it too; the failure output classifies each seed and gives
   the matching remediation) — or if the file no longer loads headlessly.
@@ -70,21 +72,30 @@ are the open follow-ups. Consequences:
 - `.github/workflows/parity.yml` — the parity check described above;
   `workflow_dispatch` runs it on demand against any branch.
 - `dashboard.html` — companion results viewer, equally single-file; reads
-  `results/index.json` (manifest) and the datasets it lists.
-- `viewer3d.html` — experimental WebGPU 3D viewer. Contains NO simulation
-  code: it fetches `index.html` at runtime and executes its script block
-  against an inert DOM proxy (same harness as fpv-sim-mcp's fixture
-  generator), then drives the real `resetSim()`/`stepSim()`. Renders
-  engine state read-only — it must never call the engine RNG or add
-  draws. Test hook: `window.__test.runHeadless(seed)` reproduces the
-  golden-fixture numbers in-browser; `?offscreen=1` renders to an
-  offscreen target for headless verification.
+  `results/index.json` (manifest) and the datasets it lists. Datasets
+  carry a `mode` ("orbit" default; tactical entries get a TACTICAL tag,
+  packages-expended stalemate wording, a strikes tile, and
+  `&mode=tactical` on their WATCH links).
+- `viewer3d.html` — experimental WebGPU 3D viewer, both modes (Mode
+  buttons keep the seed; `?mode=tactical` deep link). Contains NO
+  simulation code: it fetches `index.html` at runtime and executes its
+  script block against an inert DOM proxy (same harness as fpv-sim-mcp's
+  fixture generator), then drives the real `resetSim(seed, mode)` /
+  `stepSim()`. Renders engine state read-only — it must never call the
+  engine RNG or add draws. Test hook:
+  `window.__test.runHeadless(seed, maxT?, mode?)` reproduces both
+  golden-fixture sets in-browser (mode defaults to "orbit" regardless of
+  the viewed mode); `?offscreen=1` renders to an offscreen target for
+  headless verification.
 - `scripts/monte-carlo-study.mjs` — the canonical study runner (the four
   experiments). `--quick` for a 1/10-scale smoke pass (~4 min); full run
   ~25 min, 22,800 engagements. Writes `results/monte-carlo.json`,
-  `kind:"study"`.
+  `kind:"study"`. `--mode tactical` runs the battery under the sortie
+  stream (plus the tactical-only `reserveVsRetask` paired experiment,
+  24,800 engagements) and writes `results/monte-carlo-tactical.json` —
+  it never touches the orbit dataset.
 - `scripts/run-sweep.mjs` — ad-hoc single-sweep runner: `--label` (req),
-  `--start`, `--count`, `--overrides` (JSON). Writes an
+  `--start`, `--count`, `--overrides` (JSON), `--mode`. Writes an
   `adhoc-<slug>-<date>.json` dataset, `kind:"adhoc"`, and registers it.
   The dashboard prefixes these AD-HOC and offers a STUDY/AD-HOC filter;
   ad-hoc datasets carry only a `baseline` sweep, so the dashboard's dose
@@ -94,9 +105,9 @@ are the open follow-ups. Consequences:
 - `scripts/generate-parameters-doc.mjs` — regenerates PARAMETERS.md.
 - `results/` — committed datasets + manifest (`index.json`; entries
   written since the ad-hoc-sweep work carry a `kind` and `label`, but the
-  canonical study's entry predates both fields — the dashboard defaults
-  such legacy entries to STUDY / "Full study").
-  Quick-run output (`monte-carlo-quick.json`)
+  canonical orbit study's entry predates both fields — the dashboard
+  defaults such legacy entries to STUDY / "Full study" / orbit).
+  Quick-run output (`monte-carlo*-quick.json`)
   is a dev artifact, gitignored and never registered. Retire an ad-hoc
   dataset by deleting its file and its manifest entry.
 
@@ -123,6 +134,6 @@ here — index.html is the spec, fpv-sim-mcp is the verified headless twin.
 ## Open work
 
 Check the repo's open issues first — outstanding owner actions are
-tracked there, not in this file. Tactical-mode follow-ups (port to
-fpv-sim-mcp, study + dashboard, 3D viewer) are described under the
-invariant above.
+tracked there, not in this file. The tactical-mode follow-ups (port to
+fpv-sim-mcp, study + dashboard, 3D viewer) are done; the parity contract
+covers both modes, per the invariant above.
