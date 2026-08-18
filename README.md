@@ -176,8 +176,13 @@ The tally that matters alongside the winner is *strikes delivered* on the
 objective before the fight ended. Over seeds 1–200 the disciplined side wins
 27%, the continuous emitter 15%, and 58% stall out — the package is spent in
 about seven minutes, a much shorter exposure window than the twenty-minute
-orbit fight, so draws are more common, and the EMCON edge widens from 1.4:1
-to 1.8:1. Package size, pilot stations, launch spacing, whether to hold a
+orbit fight, so draws are more common. (The full 10,000-seed study refines
+those first-200 numbers to 24.9% / 18.7% / 56.4% — an EMCON edge of 1.33:1,
+comparable to the orbit fight's 1.40:1 rather than wider; its strongest
+finding is that flying *without* the reserve hunter-killer cuts both sides'
+win rates by half or more — see
+[MONTE_CARLO.md](MONTE_CARLO.md#e4--the-same-questions-under-tactical-mode).)
+Package size, pilot stations, launch spacing, whether to hold a
 reserve at all, and the objective itself are all in `CONFIG.TACTICAL`.
 
 Tactical mode runs everywhere the orbit engagement does: the headless twin

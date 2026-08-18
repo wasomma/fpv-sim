@@ -1,6 +1,24 @@
 {
   "datasets": [
     {
+      "file": "monte-carlo-tactical.json",
+      "kind": "study",
+      "mode": "tactical",
+      "label": "Tactical study",
+      "generated": "2026-08-18T03:58:56.629Z",
+      "sim_commit": "668799fef3294db3d2a0a58860d66c2feaefbd49",
+      "engine_commit": "3acfc56f571030f377871b645d53a30450040425",
+      "total_runs": 24800,
+      "baseline": {
+        "runs": 10000,
+        "win_rates": {
+          "BLUFOR": 0.249,
+          "OPFOR": 0.187,
+          "STALEMATE": 0.564
+        }
+      }
+    },
+    {
       "file": "adhoc-df-bearing-error-doubled-8-deg-2026-07-23.json",
       "kind": "adhoc",
       "label": "DF bearing error doubled (8 deg)",
