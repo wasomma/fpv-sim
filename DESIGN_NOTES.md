@@ -219,9 +219,10 @@ two GCS, jittered per seed like the emplacements. Each side has a **strike
 package** of `SORTIES[side]` one-way FPV airframes (default 5) plus, with
 `RESERVE_HUNTER` on, one more held back as the **hunter-killer**; a GCS has
 `PILOTS[side]` pilot stations (default 2), each flying one airframe on one C2
-link, so at most that many can be airborne at once. The NAIs and holding
-points of orbit mode are still computed (the DF effort still hunts the enemy
-GCS in its NAI); the orbit itself is not flown.
+link, so at most that many can be airborne at once. The NAIs of orbit mode
+are still assigned (the DF effort still hunts the enemy GCS in its NAI), but
+the orbit's holding points are not computed and the orbit itself is not
+flown.
 
 The launch plan is fixed at reset: sortie 1 at `TEAMS.<side>.launchT`, then
 `LAUNCH_INTERVAL_S` ± `LAUNCH_JITTER_S` (uniform) apart, each airframe with

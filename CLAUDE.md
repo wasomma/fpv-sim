@@ -9,9 +9,10 @@ DEVELOPMENT_HISTORY.md, MONTE_CARLO.md, PARAMETERS.md, CHANGELOG.md.
 
 **Same-seed determinism is this project's API.** The sibling repo
 [fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp) contains a TypeScript
-port of the simulation core in `index.html` (`CONFIG` through the end of
-the `TACTICAL MODE` section, i.e. everything before `RENDERING`), with
-parity proven by golden-master fixtures generated FROM this file.
+port of the simulation core in `index.html` — the engine is everything
+before `RENDERING` (`CONFIG` through the end of the `TACTICAL MODE`
+section); today the port covers the orbit-mode part of it, see below —
+with parity proven by golden-master fixtures generated FROM this file.
 
 The engine has two modes, selected by `resetSim(seed, mode)` /
 `state.mode`: `"orbit"` (the original engagement, and the default whenever
