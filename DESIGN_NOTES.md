@@ -270,14 +270,18 @@ airframe launched, none airborne) with no emitter left to draw the enemy's
 attention — as a **final push** on the best fix held (CEP < `PUSH_CEP_M`),
 the bingo-fuel commit by another route. The hunter is the reserve airframe,
 or, with `RESERVE_HUNTER` off, the next unflown strike airframe *retasked*
-(if the package is already spent, no hunter is possible). It needs a pilot
-station: if every one is flying a sortie the commit **holds** (logged once)
-until one frees, and the hunter then takes priority over the next strike
-launch. From launch it runs `attackGuidance()` — the same COMMIT dash,
-TERMINAL descent, visual acquisition, outward spiral and impact as the orbit
-drone — against the live fix. Impact destroys the enemy GCS, sets the winner,
-and every enemy airframe loses link; the enemy's package is grounded and its
-unflown airframes are logged.
+(it still counts as a sortie flown; if the package is already spent, no
+hunter is possible). It needs a pilot station: if every one is flying a
+sortie the commit **holds** (logged once per hold) until one frees, and the
+hunter then takes priority over the next strike launch; if the fix loosens
+back above the gate while the stations are busy, the hold is lifted. From
+launch it runs `attackGuidance()` — the same COMMIT dash, TERMINAL descent,
+visual acquisition, outward spiral and impact as the orbit drone — against
+the live fix. Impact destroys the enemy GCS, sets the winner, and every
+enemy airframe loses link; the enemy's package is grounded and its unflown
+airframes are logged. The winner's own sorties still airborne are held where
+they are — the fight is decided at the kill, and the strikes-delivered tally
+is final at that moment.
 
 ### End states and phases
 

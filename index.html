@@ -1208,7 +1208,9 @@ function stepTeamTactical(T, dt){
     // time the package is expended nothing is left to retask. It needs a
     // pilot station: if every one is flying a sortie, the commit holds
     // until one frees, and the hunter then takes priority over the next
-    // strike launch.
+    // strike launch. The hold is only as good as the gate: if the fix
+    // loosens again while the stations are busy, the hold is lifted (and
+    // a later, genuine hold is logged again).
     if (!T.flags.committed && T.est.solved){
       const strikes = T.drones.filter(d => d.role === "STRIKE");
       const gate = T.flags.fixed && T.meas.length >= F.MIN_LOBS_COMMIT && T.est.cep < F.COMMIT_CEP_M;
@@ -1223,15 +1225,21 @@ function stepTeamTactical(T, dt){
             addLog(T.side, "ATTACK COMMIT HELD // NO PILOT STATION FREE // " + shortId(T, hk) + " STANDING BY");
           }
         } else if (hk){
-          T.flags.committed = true;
+          T.flags.committed = true; T.flags.commitHeld = false;
           hk.role = "HUNTER"; hk.launched = true; hk.state = "COMMIT"; hk.agl = 2;
           hk.hdg = brgTo(hk.x, hk.y, T.est.p.x, T.est.p.y);
           T.hunter = hk;
+          // A retasked strike airframe still counts as a sortie flown (the
+          // package's "x of n flown" is airframes launched, whatever their
+          // task); it just cannot be delivered on the objective.
+          if (retasked) T.flown++;
           const tasking = "TASKED HOSTILE GCS " + gridRef(T.est.p.x, T.est.p.y) + " // CEP " + Math.round(T.est.cep) + "M";
           if (push) addLog(T.side, "FINAL PUSH // STRIKE PACKAGE EXPENDED // " + shortId(T, hk) + " LAUNCH ON BEST FIX // " + tasking);
           else if (retasked) addLog(T.side, "ATTACK COMMIT // " + shortId(T, hk) + " RETASKED FROM STRIKE PACKAGE // LAUNCH // " + tasking);
           else addLog(T.side, "ATTACK COMMIT // " + shortId(T, hk) + " HUNTER-KILLER LAUNCH // " + tasking);
         }
+      } else {
+        T.flags.commitHeld = false;   // gate lapsed: nothing is being held
       }
     }
     // Strike launches: in plan order, once the planned time has come and a
@@ -1258,6 +1266,11 @@ function stepTeamTactical(T, dt){
 function stepDroneTactical(T, d, dt){
   const E = state.teams[T.enemy], D = CONFIG.DRONE, TC = CONFIG.TACTICAL;
   if (!d.launched || d.downed || d.state === "IMPACT") return;
+  // ENDEX: the fight is decided at the GCS kill. The winner's sorties still
+  // airborne are held where they are — no further strikes are delivered,
+  // so the tally on the end card is the tally at the moment of the kill
+  // (the loser's airframes still play out their link loss below).
+  if (state.winner === T.side && d.role === "STRIKE") return;
   const label = shortId(T, d);
 
   // Battery: every airborne second in this mode is transit, dash or terminal.
