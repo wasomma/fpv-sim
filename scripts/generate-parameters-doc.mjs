@@ -31,7 +31,7 @@ const payload = params.buildConfigSchemaPayload();
 const D = engine.DEFAULT_CONFIG;
 
 const esc = (s) => s.replace(/\|/g, "\\|");
-const range = (p) => `${p.range[0]} – ${p.range[1]}`;
+const range = (p) => (p.range === null ? "true / false" : `${p.range[0]} – ${p.range[1]}`);
 
 function table(rows, header) {
   return [header, header.replace(/[^|]/g, "-"), ...rows].join("\n");
@@ -52,6 +52,16 @@ function teamsTable() {
   const rows = b.map((p) => {
     const key = p.path.split(".").pop();
     return `| \`${key}\` | ${p.default} | ${o[key].default} | ${p.unit} | ${range(p)} | ${esc(p.description)} |`;
+  });
+  return table(rows, "| Parameter | BLUFOR default | OPFOR default | Unit | Valid range | Description |");
+}
+
+// TACTICAL.SORTIES / TACTICAL.PILOTS carry a per-side default like TEAMS.
+function tacticalSideTable() {
+  const rows = ["SORTIES", "PILOTS"].map((name) => {
+    const b = payload.parameters.find((p) => p.path === `TACTICAL.${name}.BLUFOR`);
+    const o = payload.parameters.find((p) => p.path === `TACTICAL.${name}.OPFOR`);
+    return `| \`${name}\` | ${b.default} | ${o.default} | ${b.unit} | ${range(b)} | ${esc(b.description)} |`;
   });
   return table(rows, "| Parameter | BLUFOR default | OPFOR default | Unit | Valid range | Description |");
 }
@@ -81,7 +91,9 @@ How to read the groups: **DRONE** and **CUAS** are the *hardware* —
 identical for both sides. **FIX** is the *judgment* — how much evidence the
 estimator demands before acting. **TEAMS** is the *doctrine* — and the
 [Monte Carlo study](MONTE_CARLO.md) showed the outcome asymmetry lives
-entirely in that layer.
+entirely in that layer. **TACTICAL** is the *air plan* of tactical mode
+(the sortie stream selected with \`?mode=tactical\` or the tools'
+\`mode: "tactical"\`) — orbit mode never reads it.
 
 All values are notional. Change a number, reload, replay the same seed,
 and compare outcomes — or override any of them per-engagement through the
@@ -118,6 +130,17 @@ The only stock asymmetry between the sides. \`videoOff: 0\` means
 continuous video downlink and forces the CONTINUOUS EMCON label.
 
 ${teamsTable()}
+
+## TACTICAL — the sortie-stream air plan (tactical mode only)
+
+Package size and pilot-station concurrency per side, the reserve-or-retask
+hunter policy, launch spacing, and the objective's geometry. Orbit mode
+ignores this entire group; \`TEAMS.<side>.launchT\` doubles as each side's
+first strike launch time.
+
+${tacticalSideTable()}
+
+${sectionTable("TACTICAL")}
 
 ## Not tunable — structural constants and derived values
 
