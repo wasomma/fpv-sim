@@ -71,6 +71,11 @@ mode is a breaking change.
   numbers alongside the original seeds-1–200 figures and points at
   everything tactical mode now runs in; CLAUDE.md rewritten for the
   two-mode parity contract.
+- DESIGN_NOTES.md records the OBJ TANTO naming rationale: the objective
+  inside AO KATANA takes the companion blade's name from the scenario's
+  Japanese-blade codename series — the short blade to the katana's long
+  one, as the small objective sits inside the 4 km box and the short
+  tactical fight sits beside the long orbit duel.
 
 ## [1.5.0] — 2026-08-18
 

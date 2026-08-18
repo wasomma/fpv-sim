@@ -215,7 +215,13 @@ it runs — or draws from the RNG — in orbit mode.
 
 There is a ground fight both sides are supporting: a contested objective,
 **OBJ TANTO** (`CONFIG.TACTICAL.OBJ_*`), a 260 m circle midway between the
-two GCS, jittered per seed like the emplacements. Each side has a **strike
+two GCS, jittered per seed like the emplacements. (The name follows the
+scenario's Japanese-blade codename series — the objective inside AO KATANA
+takes the companion blade's name, in the usual themed-codename way that
+also flags everything here as notional. The scale metaphor is deliberate:
+the tantō is the short blade to the katana's long one, as OBJ TANTO is the
+small circle inside the 4 km box — and tactical mode is the short, close-in
+fight to the orbit engagement's long duel.) Each side has a **strike
 package** of `SORTIES[side]` one-way FPV airframes (default 5) plus, with
 `RESERVE_HUNTER` on, one more held back as the **hunter-killer**; a GCS has
 `PILOTS[side]` pilot stations (default 2), each flying one airframe on one C2
