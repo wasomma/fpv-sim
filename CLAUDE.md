@@ -92,8 +92,11 @@ are the open follow-ups. Consequences:
 - `scripts/sweep-utils.mjs` — shared helpers (engine load, Wilson CIs,
   histograms, manifest upsert) both runners use, so they can't drift.
 - `scripts/generate-parameters-doc.mjs` — regenerates PARAMETERS.md.
-- `results/` — committed datasets + manifest (`index.json`; each entry
-  has a `kind` and `label`). Quick-run output (`monte-carlo-quick.json`)
+- `results/` — committed datasets + manifest (`index.json`; entries
+  written since the ad-hoc-sweep work carry a `kind` and `label`, but the
+  canonical study's entry predates both fields — the dashboard defaults
+  such legacy entries to STUDY / "Full study").
+  Quick-run output (`monte-carlo-quick.json`)
   is a dev artifact, gitignored and never registered. Retire an ad-hoc
   dataset by deleting its file and its manifest entry.
 

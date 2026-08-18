@@ -14,6 +14,12 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-08-18
+
+Not behavior-changing for orbit mode: fpv-sim-mcp's golden fixtures
+regenerate byte-identically from this release's `index.html` (verified
+locally and by the `parity` workflow on every constituent merge).
+
 ### Added
 - **Tactical mode** — a second, selectable engagement plan on the same
   terrain, sensors, fix math and terminal guidance (Mode buttons in the
@@ -93,6 +99,18 @@ Monte Carlo results — such a change is called out explicitly as
   "Current State" retitled as the state at the end of the authoring
   session (2026-07-20) with a pointer to this changelog for everything
   since.
+- DEVELOPMENT_HISTORY closing note tightened for the tactical-mode era:
+  what has held constant since the authoring session is the *orbit-mode
+  engagement behavior* (same seed → same engagement), not the
+  `index.html` file itself, which now also carries tactical mode; the
+  "everything since" list gains tactical mode.
+- MONTE_CARLO.md now says explicitly that the study exercises orbit mode
+  only (the README already carried this caveat); extending the study to
+  tactical mode remains open follow-up work.
+- CLAUDE.md manifest note corrected: `results/index.json` entries written
+  before the ad-hoc-sweep work predate the `kind`/`label` fields (the
+  canonical study's entry has neither; the dashboard defaults such
+  entries to STUDY / "Full study").
 
 ## [1.4.0] — 2026-08-16
 
@@ -223,7 +241,8 @@ against this commit's parent).
 - Team status HUD cards, map overlay layout polish, cover-fit map view,
   and sidebar playback controls.
 
-[Unreleased]: https://github.com/wasomma/fpv-sim/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/wasomma/fpv-sim/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/wasomma/fpv-sim/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/wasomma/fpv-sim/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/wasomma/fpv-sim/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/wasomma/fpv-sim/compare/v1.1.0...v1.2.0

@@ -191,8 +191,10 @@ from the `main` branch root, and the live URL was verified serving the demo:
 
 Everything since — the headless TypeScript twin and MCP server
 ([fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp)), the 22,800-run Monte
-Carlo study, the results dashboard, ad-hoc sweeps, the WebGPU 3D viewer, and
-the parameter reference — is recorded release by release in
-[CHANGELOG.md](CHANGELOG.md). The simulation engine in `index.html` has not
-changed since this session; that is what lets those later pieces be verified
+Carlo study, the results dashboard, ad-hoc sweeps, the WebGPU 3D viewer, the
+parameter reference, and the tactical sortie-stream mode — is recorded
+release by release in [CHANGELOG.md](CHANGELOG.md). The original ("orbit")
+engagement in `index.html` has behaved identically since this session — the
+same seed still produces the same engagement, even as the file gained a
+second mode — and that stability is what lets those later pieces be verified
 against it.

@@ -37,7 +37,9 @@ proven by that project's golden-master tests (same seed → same engagement,
 event-log string-equal, CEPs float-equal). This study deliberately does
 *not* reimplement the sim: `index.html` remains the specification, the
 engine is its verified headless twin, and re-deriving a third copy here
-would only create drift risk.
+would only create drift risk. The study exercises the original ("orbit")
+engagement — one FPV per side holding a forward orbit; the tactical
+sortie-stream mode added to `index.html` later is not yet covered.
 
 ### Design
 
