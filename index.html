@@ -138,7 +138,7 @@
 <body>
   <div class="banner">Unclassified // Notional Demonstration</div>
   <header>
-    <div class="title"><b>FPV sUAS vs cUAS</b> <span>// FORCE-ON-FORCE</span></div>
+    <div class="title"><b>FPV sUAS vs cUAS</b> <span>// FORCE-ON-FORCE<span id="modeTag"></span></span></div>
     <div class="clock">
       <span id="simclock">T+00:00</span>
       <span id="phase">PHASE I // EMPLACEMENT</span>
@@ -174,15 +174,14 @@
             <button data-spd="4" class="active">4x</button>
             <button data-spd="8">8x</button>
           </div>
+          <div class="ctl-lbl">Mode</div>
+          <div class="ctl-row" id="modeGrp">
+            <button data-mode="orbit" class="active" title="One FPV per side holds a forward orbit while the DF nodes build the fix">Orbit</button>
+            <button data-mode="tactical" title="Both sides fly FPV strike sorties into a shared objective; a reserved hunter-killer launches on the GCS fix">Tactical</button>
+          </div>
           <div class="ctl-lbl"><label for="scenario" style="cursor:pointer">Scenario</label></div>
-          <select id="scenario" title="Featured engagements">
-            <option value="20260719">Standard Engagement (BLUFOR)</option>
-            <option value="66">Discipline Wins, Fast (BLUFOR)</option>
-            <option value="57">Deliberate Fix (BLUFOR)</option>
-            <option value="41">OPFOR Prevails</option>
-            <option value="59">Close Race (OPFOR)</option>
-            <option value="custom" hidden>Custom Seed</option>
-          </select>
+          <!-- Options are populated per mode from FEATURED in the script. -->
+          <select id="scenario" title="Featured engagements"></select>
           <div class="ctl-lbl">Map Layers</div>
           <div class="toggles">
             <label><input type="checkbox" id="tglRF"> RF Coverage</label>
@@ -277,6 +276,24 @@ const CONFIG = {
               emconLabel: "INTERMITTENT" },
     OPFOR:  { uplinkOn: 10, uplinkOff: 4,  videoOn: 1, videoOff: 0, launchT: 26,
               emconLabel: "CONTINUOUS" }
+  },
+
+  // TACTICAL mode only (state.mode === "tactical"; see the TACTICAL MODE
+  // section). Each side pushes a package of one-way FPV strike sorties into
+  // a shared objective while its DF nodes hunt the enemy GCS; a reserved
+  // hunter-killer launches on the fix. ORBIT mode never reads this block.
+  // TEAMS.<side>.launchT doubles as each side's first strike launch time.
+  TACTICAL: {
+    OBJ_X: 1830, OBJ_Y: 1975, // Contested objective (the supported ground fight), midway between the GCS; jittered per seed like the emplacements.
+    OBJ_RADIUS_M: 260,       // Objective radius; strike aim points are scattered inside it.
+    OBJ_NAME: "OBJ TANTO",
+    SORTIES: { BLUFOR: 5, OPFOR: 5 },  // Strike airframes per side (one-way; expended on impact).
+    PILOTS:  { BLUFOR: 2, OPFOR: 2 },  // Pilot stations per GCS = max FPVs airborne at once, one C2 link each.
+    RESERVE_HUNTER: true,    // Hold one extra FPV back as the dedicated GCS hunter-killer. false: the next unflown strike airframe is retasked when the fix commits.
+    LAUNCH_INTERVAL_S: 90,   // Nominal spacing between strike launches.
+    LAUNCH_JITTER_S: 20,     // +/- uniform jitter on that spacing, drawn per sortie at reset.
+    STRIKE_TERMINAL_M: 380,  // A strike sortie hands from autonomous transit to manual terminal this far from its aim point.
+    AIM_SIGMA_M: 90          // 1-sigma scatter of aim points about the objective center.
   },
 
   COLORS: {
@@ -518,8 +535,11 @@ function pathAtten(ax, ay, aAgl, bx, by, bAgl){
 const state = {
   t: 0, playing: false, speed: CONFIG.DEFAULT_SPEED,
   seed: CONFIG.SEED,
+  mode: "orbit",            // "orbit" (original hold-orbit engagement) | "tactical" (sortie stream; see TACTICAL MODE)
   teams: null, pulses: [], explosions: [],
   winner: null, endT: null, endShown: false,
+  killer: null,             // id of the drone that destroyed the losing GCS
+  stalemate: false, obj: null, // tactical mode: draw ENDEX flag; the contested objective
   selected: null, nextScanT: 0, phase: "PHASE I // EMPLACEMENT"
 };
 
@@ -554,6 +574,8 @@ function makeDrone(team, x, y){
     orbitA: 0, fixReached: false, searchR: 0
   };
 }
+// Drone id without the side prefix, as the log speaks of it: "BLUFOR-sUAS-1" -> "sUAS-1".
+const shortId = (T, d) => d.id.slice(T.side.length + 1);
 
 function lawnmower(box, r){
   // North-south legs across the named area of interest.
@@ -567,12 +589,19 @@ function lawnmower(box, r){
   return wps;
 }
 
-function resetSim(seed){
+// mode: "orbit" | "tactical". Omitted keeps the current mode, so Reset /
+// Replay / Random stay in mode, and headless harnesses that call
+// resetSim(seed) get "orbit" unless they opt in. Both modes share the RNG
+// stream up to and including the emplacement below: the same seed gives
+// the same terrain, GCS and DF positions in either mode.
+function resetSim(seed, mode){
+  if (mode) state.mode = mode;
   state.seed = seed;
   rng = mulberry32(seed);
   buildWorld(seed);
   state.t = 0; state.pulses = []; state.explosions = [];
   state.winner = null; state.endT = null; state.endShown = false;
+  state.killer = null; state.stalemate = false; state.obj = null;
   state.nextScanT = 0; state.selected = null;
   state.phase = "PHASE I // EMPLACEMENT";
   document.getElementById("endcard").classList.add("hidden");
@@ -606,12 +635,20 @@ function resetSim(seed){
       while (elevAt(u.x, u.y) < 4 && guard++ < 40){ u.x -= 60; }
     }
   }
-  B.drone = makeDrone(B, B.gcs.x, B.gcs.y);
-  O.drone = makeDrone(O, O.gcs.x, O.gcs.y);
-
   // Suspected enemy locations drive each side's named area of interest.
   B.searchBox = { x: 2450, y: 1250, w: 1050, h: 1400 }; B.nai = "NAI 2";
   O.searchBox = { x: 350,  y: 1350, w: 1050, h: 1400 }; O.nai = "NAI 1";
+
+  addLog("SYS", "SIMULATION INITIALIZED // SEED " + seed + " // AO KATANA (NOTIONAL)");
+  addLog("BLUFOR", "GCS AND cUAS DF NODES EMPLACED " + gridRef(B.gcs.x, B.gcs.y) + " // EMCON " + B.emcon.emconLabel);
+  addLog("OPFOR", "GCS AND cUAS DF NODES EMPLACED " + gridRef(O.gcs.x, O.gcs.y) + " // EMCON " + O.emcon.emconLabel);
+
+  // Modes diverge here: the air plan. Everything above (and every RNG draw
+  // so far) is common to both.
+  if (state.mode === "tactical"){ setupTactical(B, O); return; }
+
+  B.drone = makeDrone(B, B.gcs.x, B.gcs.y);
+  O.drone = makeDrone(O, O.gcs.x, O.gcs.y);
   // Holding point: forward of own GCS on the bearing to the NAI center, at
   // standoff. The drone loiters here (close, slow) while the ground cUAS
   // builds the fix, then dashes to the target once committed.
@@ -624,10 +661,6 @@ function resetSim(seed){
     };
     T.drone.wps = [T.holdPt];
   }
-
-  addLog("SYS", "SIMULATION INITIALIZED // SEED " + seed + " // AO KATANA (NOTIONAL)");
-  addLog("BLUFOR", "GCS AND cUAS DF NODES EMPLACED " + gridRef(B.gcs.x, B.gcs.y) + " // EMCON " + B.emcon.emconLabel);
-  addLog("OPFOR", "GCS AND cUAS DF NODES EMPLACED " + gridRef(O.gcs.x, O.gcs.y) + " // EMCON " + O.emcon.emconLabel);
   renderPanel();
 }
 
@@ -649,6 +682,55 @@ function videoActive(team){
 }
 
 /* --------------------- DF COLLECT AND FIX --------------------------- */
+// One DF scan for team T against emitter E's C2 uplink: each node that has
+// the enemy GCS in range rolls to detect, and a detection appends a noisy
+// LOB to T's collection effort. Shared by both modes.
+function collectUplinkLOBs(T, E){
+  const side = T.side;
+  for (const nd of T.nodes){
+    const r = dist(nd.x, nd.y, E.gcs.x, E.gcs.y);
+    if (r > CONFIG.CUAS.MAX_RANGE_M) continue;
+    const att = pathAtten(nd.x, nd.y, 4, E.gcs.x, E.gcs.y, 2.5);
+    const p = CONFIG.CUAS.P_DETECT_UL * clamp(1.15 - r / CONFIG.CUAS.MAX_RANGE_M, 0, 1) * Math.exp(-att);
+    if (rng() < p){
+      const sig = d2r(CONFIG.CUAS.BRG_SIGMA_DEG) * (1 + 0.5 * att);
+      const brg = brgTo(nd.x, nd.y, E.gcs.x, E.gcs.y) + gauss() * sig;
+      T.meas.push({ sx: nd.x, sy: nd.y, brg, sig, t: state.t });
+      if (T.meas.length > CONFIG.CUAS.MAX_MEAS) T.meas.shift();
+      nd.det++; nd.lastBrg = brg; nd.lastT = state.t;
+      if (!T.flags.firstLOB){
+        T.flags.firstLOB = true;
+        addLog(side, nd.id.replace(side + "-", "") + " INITIAL LOB " +
+          String(Math.round((r2d(brg) + 360) % 360)).padStart(3, "0") +
+          "T // C2 UPLINK 915 MHZ // HOSTILE GCS EMITTING");
+      }
+    }
+  }
+}
+
+// One DF scan for team T against an enemy air vehicle d's video downlink.
+// Returns the noisy track from the last node that detected it this scan
+// (null if none). Shared by both modes.
+function collectDownlink(T, d){
+  const side = T.side;
+  let track = null;
+  for (const nd of T.nodes){
+    const r = dist(nd.x, nd.y, d.x, d.y);
+    if (r > CONFIG.CUAS.MAX_RANGE_M) continue;
+    const att = pathAtten(nd.x, nd.y, 4, d.x, d.y, Math.max(d.agl, 5));
+    const p = CONFIG.CUAS.P_DETECT_DL * clamp(1.2 - r / CONFIG.CUAS.MAX_RANGE_M, 0, 1) * Math.exp(-att);
+    if (rng() < p){
+      nd.dl++;
+      track = { x: d.x + gauss() * 55, y: d.y + gauss() * 55, t: state.t };
+      if (!T.flags.dlFirst){
+        T.flags.dlFirst = true;
+        addLog(side, "FPV VIDEO DOWNLINK DETECTED 5.8 GHZ // HOSTILE sUAS AIRBORNE");
+      }
+    }
+  }
+  return track;
+}
+
 function doScans(){
   for (const side of ["BLUFOR", "OPFOR"]){
     const T = state.teams[side];
@@ -656,44 +738,13 @@ function doScans(){
     if (T.gcs.destroyed) continue;
     // C2 uplink intercepts: LOBs terminate at the enemy GCS.
     if (uplinkActive(E)){
-      for (const nd of T.nodes){
-        const r = dist(nd.x, nd.y, E.gcs.x, E.gcs.y);
-        if (r > CONFIG.CUAS.MAX_RANGE_M) continue;
-        const att = pathAtten(nd.x, nd.y, 4, E.gcs.x, E.gcs.y, 2.5);
-        const p = CONFIG.CUAS.P_DETECT_UL * clamp(1.15 - r / CONFIG.CUAS.MAX_RANGE_M, 0, 1) * Math.exp(-att);
-        if (rng() < p){
-          const sig = d2r(CONFIG.CUAS.BRG_SIGMA_DEG) * (1 + 0.5 * att);
-          const brg = brgTo(nd.x, nd.y, E.gcs.x, E.gcs.y) + gauss() * sig;
-          T.meas.push({ sx: nd.x, sy: nd.y, brg, sig, t: state.t });
-          if (T.meas.length > CONFIG.CUAS.MAX_MEAS) T.meas.shift();
-          nd.det++; nd.lastBrg = brg; nd.lastT = state.t;
-          if (!T.flags.firstLOB){
-            T.flags.firstLOB = true;
-            addLog(side, nd.id.replace(side + "-", "") + " INITIAL LOB " +
-              String(Math.round((r2d(brg) + 360) % 360)).padStart(3, "0") +
-              "T // C2 UPLINK 915 MHZ // HOSTILE GCS EMITTING");
-          }
-        }
-      }
+      collectUplinkLOBs(T, E);
       updateFix(T, E);
     }
     // FPV video downlink intercepts: track on the enemy air vehicle.
     if (videoActive(E)){
-      const d = E.drone;
-      for (const nd of T.nodes){
-        const r = dist(nd.x, nd.y, d.x, d.y);
-        if (r > CONFIG.CUAS.MAX_RANGE_M) continue;
-        const att = pathAtten(nd.x, nd.y, 4, d.x, d.y, Math.max(d.agl, 5));
-        const p = CONFIG.CUAS.P_DETECT_DL * clamp(1.2 - r / CONFIG.CUAS.MAX_RANGE_M, 0, 1) * Math.exp(-att);
-        if (rng() < p){
-          nd.dl++;
-          T.droneTrack = { x: d.x + gauss() * 55, y: d.y + gauss() * 55, t: state.t };
-          if (!T.flags.dlFirst){
-            T.flags.dlFirst = true;
-            addLog(side, "FPV VIDEO DOWNLINK DETECTED 5.8 GHZ // HOSTILE sUAS AIRBORNE");
-          }
-        }
-      }
+      const track = collectDownlink(T, E.drone);
+      if (track) T.droneTrack = track;
     }
   }
 }
@@ -887,55 +938,72 @@ function stepDrone(T, dt){
     targetX = T.holdPt.x + Math.sin(d.orbitA) * D.HOLD_RADIUS_M;
     targetY = T.holdPt.y + Math.cos(d.orbitA) * D.HOLD_RADIUS_M;
     wantSpd = D.LOITER_MPS; wantAgl = D.ALT_LOITER_AGL;
-  } else if (d.state === "COMMIT"){
-    targetX = T.est.p.x; targetY = T.est.p.y;
-    wantSpd = D.DASH_MPS;
-    if (dist(d.x, d.y, targetX, targetY) < 380){
-      d.state = "TERMINAL";
-      addLog(T.side, "sUAS-1 TERMINAL PHASE // DESCENDING BELOW CANOPY FOR VISUAL ID");
-    }
-  } else if (d.state === "TERMINAL"){
-    wantSpd = D.TERMINAL_MPS; wantAgl = D.ALT_TERMINAL_AGL;
-    const gr = dist(d.x, d.y, E.gcs.x, E.gcs.y);
-    if (!T.flags.acquired && gr < D.ACQ_RANGE_M){
-      T.flags.acquired = true;
-      addLog(T.side, "sUAS-1 VISUAL ACQ HOSTILE GCS // COMMENCING ATTACK RUN");
-    }
-    if (T.flags.acquired){
-      targetX = E.gcs.x; targetY = E.gcs.y;
-      if (gr < D.IMPACT_RANGE_M){
-        d.state = "IMPACT"; d.spd = 0;
-        E.gcs.destroyed = true;
-        state.explosions.push({ x: E.gcs.x, y: E.gcs.y, t0: state.t });
-        state.winner = T.side; state.endT = state.t;
-        addLog(T.side, "IMPACT // HOSTILE GCS DESTROYED " + gridRef(E.gcs.x, E.gcs.y));
-        addLog("SYS", "ENDEX // " + T.side + " VICTORY " + fmtT(state.t));
-        return;
-      }
-    } else {
-      // Drive to the fix center first. Only once the drone has reached the
-      // estimated point without acquiring (a fix error larger than sensor
-      // range) does the operator fly an expanding-square visual search
-      // outward. A modest error is recovered quickly; a gross error (a
-      // geometrically weak fix that slipped the commit gate) burns battery.
-      const d2fix = dist(d.x, d.y, T.est.p.x, T.est.p.y);
-      if (d2fix > D.WPT_RADIUS_M && !d.fixReached){
-        targetX = T.est.p.x; targetY = T.est.p.y;   // still inbound to the fix
-      } else {
-        d.fixReached = true;
-        d.searchR = (d.searchR || 0) + dt * D.TERMINAL_SEARCH_GROW;
-        d.orbitA += dt * (D.TERMINAL_MPS / Math.max(40, d.searchR));
-        targetX = T.est.p.x + Math.sin(d.orbitA) * d.searchR;
-        targetY = T.est.p.y + Math.cos(d.orbitA) * d.searchR;
-      }
-      wantSpd = D.TERMINAL_MPS; wantAgl = D.ALT_TERMINAL_AGL;
-    }
+  } else if (d.state === "COMMIT" || d.state === "TERMINAL"){
+    const want = { x: 0, y: 0, spd: wantSpd, agl: wantAgl };
+    if (attackGuidance(T, d, E, dt, want)) return;
+    targetX = want.x; targetY = want.y; wantSpd = want.spd; wantAgl = want.agl;
   }
 
   steerToward(d, targetX, targetY, dt);
   d.spd = d.spd + clamp(wantSpd - d.spd, -6 * dt, 6 * dt);
   d.agl = d.agl + clamp(wantAgl - d.agl, -D.CLIMB_MPS * dt, D.CLIMB_MPS * dt);
   moveDrone(d, dt);
+}
+
+// Attack-run guidance against the enemy GCS, shared by both modes (the
+// ORBIT drone once committed; the TACTICAL hunter-killer from launch).
+// COMMIT dashes to the current fix and hands off to TERMINAL 380 m out;
+// TERMINAL descends below canopy, acquires visually inside ACQ_RANGE_M and
+// homes on the GCS, or — having reached the fix without acquiring — flies
+// an expanding search outward. Fills `want` (steering target, airspeed,
+// altitude; caller pre-loads the transit defaults) and returns true when
+// the drone impacted this step, in which case the caller must not move it.
+function attackGuidance(T, d, E, dt, want){
+  const D = CONFIG.DRONE, label = shortId(T, d);
+  if (d.state === "COMMIT"){
+    want.x = T.est.p.x; want.y = T.est.p.y;
+    want.spd = D.DASH_MPS;
+    if (dist(d.x, d.y, want.x, want.y) < 380){
+      d.state = "TERMINAL";
+      addLog(T.side, label + " TERMINAL PHASE // DESCENDING BELOW CANOPY FOR VISUAL ID");
+    }
+    return false;
+  }
+  want.spd = D.TERMINAL_MPS; want.agl = D.ALT_TERMINAL_AGL;
+  const gr = dist(d.x, d.y, E.gcs.x, E.gcs.y);
+  if (!T.flags.acquired && gr < D.ACQ_RANGE_M){
+    T.flags.acquired = true;
+    addLog(T.side, label + " VISUAL ACQ HOSTILE GCS // COMMENCING ATTACK RUN");
+  }
+  if (T.flags.acquired){
+    want.x = E.gcs.x; want.y = E.gcs.y;
+    if (gr < D.IMPACT_RANGE_M){
+      d.state = "IMPACT"; d.spd = 0;
+      E.gcs.destroyed = true;
+      state.explosions.push({ x: E.gcs.x, y: E.gcs.y, t0: state.t });
+      state.winner = T.side; state.endT = state.t; state.killer = d.id;
+      addLog(T.side, "IMPACT // HOSTILE GCS DESTROYED " + gridRef(E.gcs.x, E.gcs.y));
+      addLog("SYS", "ENDEX // " + T.side + " VICTORY " + fmtT(state.t));
+      return true;
+    }
+  } else {
+    // Drive to the fix center first. Only once the drone has reached the
+    // estimated point without acquiring (a fix error larger than sensor
+    // range) does the operator fly an expanding-square visual search
+    // outward. A modest error is recovered quickly; a gross error (a
+    // geometrically weak fix that slipped the commit gate) burns battery.
+    const d2fix = dist(d.x, d.y, T.est.p.x, T.est.p.y);
+    if (d2fix > D.WPT_RADIUS_M && !d.fixReached){
+      want.x = T.est.p.x; want.y = T.est.p.y;   // still inbound to the fix
+    } else {
+      d.fixReached = true;
+      d.searchR = (d.searchR || 0) + dt * D.TERMINAL_SEARCH_GROW;
+      d.orbitA += dt * (D.TERMINAL_MPS / Math.max(40, d.searchR));
+      want.x = T.est.p.x + Math.sin(d.orbitA) * d.searchR;
+      want.y = T.est.p.y + Math.cos(d.orbitA) * d.searchR;
+    }
+  }
+  return false;
 }
 
 function moveDrone(d, dt){
@@ -953,6 +1021,7 @@ function moveDrone(d, dt){
 
 /* ----------------------- MASTER STEP -------------------------------- */
 function stepSim(dt){
+  if (state.mode === "tactical") return stepSimTactical(dt);
   state.t += dt;
   const B = state.teams.BLUFOR, O = state.teams.OPFOR;
 
@@ -996,6 +1065,346 @@ function stepSim(dt){
     document.getElementById("endcard").classList.remove("hidden");
     updatePlayBtn();
   }
+}
+
+/* ======================= TACTICAL MODE ============================== */
+// A second engagement plan on the same terrain, sensors, fix math and
+// terminal guidance as ORBIT mode (everything above is shared; nothing in
+// this section runs, or draws from the RNG, in ORBIT mode). Instead of one
+// FPV per side holding a forward orbit while the DF nodes work, each side
+// pushes a package of one-way strike sorties into a shared objective —
+// the ground fight both packages support. Every sortie keys its GCS's C2
+// uplink: per the team's EMCON schedule while the airframe transits
+// autonomously, continuously once the pilot takes manual control for the
+// terminal run. The more a side flies, the more its GCS emits, and the
+// enemy DF nodes fix it sortie by sortie. When a side's fix meets the
+// commit gate, its reserved hunter-killer launches against it — or, once
+// its strike package is expended with nothing left to draw fire, on the
+// best fix it holds (ORBIT's bingo-fuel commit, by another route).
+//
+// Win: enemy GCS destroyed (identical impact logic to ORBIT). Draw: both
+// packages expended, neither side able to launch a hunter — no emitter
+// left for either DF effort to work, so neither fix can improve.
+//
+// Per team (in addition to the shared fields): drones[] (the package;
+// drone is null), hunter (the reserve, or the retasked airframe), tracks
+// {droneId: {x,y,t}} from DL intercepts, flown / delivered sortie counts,
+// pilots (concurrency cap: one C2 link per pilot station).
+
+const teamDrones = T => T.drones || [T.drone];   // both modes (UI/helpers)
+const droneLinked = d => d.launched && !d.downed && !d.linkLost && d.state !== "IMPACT";
+const droneManual = d => d.state === "COMMIT" || d.state === "TERMINAL";
+const airborne = T => T.drones.filter(d => d.launched && !d.downed && d.state !== "IMPACT").length;
+
+function setupTactical(B, O){
+  const TC = CONFIG.TACTICAL, j = () => (rng() - 0.5) * 120;
+  // The contested objective — the ground fight both packages support —
+  // sits between the two GCS, jittered like the emplacements.
+  state.obj = { x: TC.OBJ_X + j(), y: TC.OBJ_Y + j(), r: TC.OBJ_RADIUS_M, name: TC.OBJ_NAME };
+  for (const T of [B, O]){
+    T.drone = null;             // the single-drone slot is ORBIT mode only
+    T.drones = []; T.hunter = null; T.tracks = {};
+    T.flown = 0; T.delivered = 0;
+    T.pilots = Math.max(1, TC.PILOTS[T.side] | 0);   // a GCS with no pilot station could never end the fight
+    T.flags.grounded = false; T.flags.commitHeld = false;
+    const n = TC.SORTIES[T.side];
+    // Strike package: launch plan (first at launchT, then INTERVAL +/-
+    // JITTER apart), per-airframe emission phase, and an aim point
+    // scattered inside the objective. All drawn here so the seed fixes
+    // the whole plan before the first tick.
+    let planT = T.launchT;
+    for (let i = 1; i <= n; i++){
+      const d = makeDrone(T, T.gcs.x, T.gcs.y);
+      d.id = T.side + "-sUAS-" + i; d.role = "STRIKE"; d.sortie = i;
+      d.ulPhase = rng() * 20; d.viPhase = rng() * 8;
+      let ax = state.obj.x + gauss() * TC.AIM_SIGMA_M;
+      let ay = state.obj.y + gauss() * TC.AIM_SIGMA_M;
+      const off = dist(state.obj.x, state.obj.y, ax, ay);
+      if (off > state.obj.r){
+        ax = state.obj.x + (ax - state.obj.x) * state.obj.r / off;
+        ay = state.obj.y + (ay - state.obj.y) * state.obj.r / off;
+      }
+      d.aim = { x: ax, y: ay };
+      d.planT = planT;
+      planT += TC.LAUNCH_INTERVAL_S + (rng() - 0.5) * 2 * TC.LAUNCH_JITTER_S;
+      T.drones.push(d);
+    }
+    if (TC.RESERVE_HUNTER){
+      const d = makeDrone(T, T.gcs.x, T.gcs.y);
+      d.id = T.side + "-sUAS-" + (n + 1); d.role = "HUNTER"; d.sortie = 0;
+      d.ulPhase = 0; d.viPhase = 0;      // always under manual control once airborne
+      d.aim = null; d.planT = null;
+      T.drones.push(d); T.hunter = d;
+    }
+  }
+  addLog("SYS", "TACTICAL MODE // " + state.obj.name + " " + gridRef(state.obj.x, state.obj.y) +
+    " // FPV STRIKE PACKAGES TASKED IN SUPPORT OF THE GROUND FIGHT");
+  for (const T of [B, O]){
+    addLog(T.side, "FPV PACKAGE " + TC.SORTIES[T.side] + " STRIKE SORTIES" +
+      (T.hunter ? " // 1 HUNTER-KILLER IN RESERVE" : "") + " // " + T.pilots +
+      (T.pilots === 1 ? " PILOT STATION" : " PILOT STATIONS"));
+  }
+  renderPanel();
+}
+
+/* ------------------- emissions (tactical) --------------------------- */
+// The GCS uplink is up whenever any linked airframe needs it: continuously
+// for one under manual control (COMMIT/TERMINAL), else in that airframe's
+// scheduled window of the team's EMCON duty cycle. Idle GCS: silent.
+function uplinkActiveTac(team){
+  if (team.gcs.destroyed) return false;
+  const p = team.emcon, per = p.uplinkOn + p.uplinkOff;
+  for (const d of team.drones){
+    if (!droneLinked(d)) continue;
+    if (droneManual(d)) return true;
+    if (((state.t + d.ulPhase) % per) < p.uplinkOn) return true;
+  }
+  return false;
+}
+// Video downlink per airframe: continuous posture, or manual control, or
+// this airframe's scheduled burst window.
+function videoActiveTac(team, d){
+  if (!droneLinked(d)) return false;
+  if (team.emcon.videoOff === 0) return true;
+  if (droneManual(d)) return true;
+  const per = team.emcon.videoOn + team.emcon.videoOff;
+  return ((state.t + d.viPhase) % per) < team.emcon.videoOn;
+}
+
+/* ------------------- DF collection (tactical) ----------------------- */
+function doScansTactical(){
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side];
+    const E = state.teams[T.enemy];
+    if (T.gcs.destroyed) continue;
+    if (uplinkActiveTac(E)){
+      collectUplinkLOBs(T, E);
+      updateFix(T, E);
+    }
+    for (const d of E.drones){
+      if (!videoActiveTac(E, d)) continue;
+      const track = collectDownlink(T, d);
+      if (track) T.tracks[d.id] = track;
+    }
+  }
+}
+
+/* ------------------- launch scheduler (tactical) -------------------- */
+function stepTeamTactical(T, dt){
+  const TC = CONFIG.TACTICAL, F = CONFIG.FIX;
+  if (T.gcs.destroyed){
+    if (!T.flags.grounded){
+      T.flags.grounded = true;
+      const unflown = T.drones.filter(d => !d.launched).length;
+      addLog(T.side, "GCS DESTROYED // FPV PACKAGE GROUNDED // " + unflown +
+        (unflown === 1 ? " AIRFRAME" : " AIRFRAMES") + " UNFLOWN // SUPPORT TO " + state.obj.name + " SEVERED");
+    }
+  } else if (!state.winner){   // no launches after ENDEX
+    // Hunter commit: the fix meets the commit gate — or, with the strike
+    // package expended and no emitter left to draw the enemy's attention,
+    // a final push on the best fix held. The hunter is the reserve, or
+    // (RESERVE_HUNTER off) the next unflown strike airframe, retasked —
+    // which means that without a reserve there is no final push: by the
+    // time the package is expended nothing is left to retask. It needs a
+    // pilot station: if every one is flying a sortie, the commit holds
+    // until one frees, and the hunter then takes priority over the next
+    // strike launch. The hold is only as good as the gate: if the fix
+    // loosens again while the stations are busy, the hold is lifted (and
+    // a later, genuine hold is logged again).
+    if (!T.flags.committed && T.est.solved){
+      const strikes = T.drones.filter(d => d.role === "STRIKE");
+      const gate = T.flags.fixed && T.meas.length >= F.MIN_LOBS_COMMIT && T.est.cep < F.COMMIT_CEP_M;
+      const expended = strikes.every(d => d.launched) && airborne(T) === 0;
+      const push = !gate && expended && T.est.cep < F.PUSH_CEP_M;
+      if (gate || push){
+        let hk = T.hunter && !T.hunter.launched ? T.hunter : null, retasked = false;
+        if (!hk && !TC.RESERVE_HUNTER){ hk = strikes.find(d => !d.launched) || null; retasked = !!hk; }
+        if (hk && airborne(T) >= T.pilots){
+          if (!T.flags.commitHeld){
+            T.flags.commitHeld = true;
+            addLog(T.side, "ATTACK COMMIT HELD // NO PILOT STATION FREE // " + shortId(T, hk) + " STANDING BY");
+          }
+        } else if (hk){
+          T.flags.committed = true; T.flags.commitHeld = false;
+          hk.role = "HUNTER"; hk.launched = true; hk.state = "COMMIT"; hk.agl = 2;
+          hk.hdg = brgTo(hk.x, hk.y, T.est.p.x, T.est.p.y);
+          T.hunter = hk;
+          // A retasked strike airframe still counts as a sortie flown (the
+          // package's "x of n flown" is airframes launched, whatever their
+          // task); it just cannot be delivered on the objective.
+          if (retasked) T.flown++;
+          const tasking = "TASKED HOSTILE GCS " + gridRef(T.est.p.x, T.est.p.y) + " // CEP " + Math.round(T.est.cep) + "M";
+          if (push) addLog(T.side, "FINAL PUSH // STRIKE PACKAGE EXPENDED // " + shortId(T, hk) + " LAUNCH ON BEST FIX // " + tasking);
+          else if (retasked) addLog(T.side, "ATTACK COMMIT // " + shortId(T, hk) + " RETASKED FROM STRIKE PACKAGE // LAUNCH // " + tasking);
+          else addLog(T.side, "ATTACK COMMIT // " + shortId(T, hk) + " HUNTER-KILLER LAUNCH // " + tasking);
+        }
+      } else {
+        T.flags.commitHeld = false;   // gate lapsed: nothing is being held
+      }
+    }
+    // Strike launches: in plan order, once the planned time has come and a
+    // pilot station is free (a busy package slips its schedule).
+    if (airborne(T) < T.pilots){
+      const next = T.drones.find(d => d.role === "STRIKE" && !d.launched);
+      if (next && state.t >= next.planT){
+        next.launched = true; next.state = "TRANSIT"; next.agl = 2;
+        next.hdg = brgTo(next.x, next.y, next.aim.x, next.aim.y);
+        T.flown++;
+        addLog(T.side, shortId(T, next) + " LAUNCH " + gridRef(next.x, next.y) + " // KINETIC PAYLOAD // SORTIE " +
+          next.sortie + " OF " + TC.SORTIES[T.side] + " // TGT " + state.obj.name);
+      }
+    }
+  }
+  for (const d of T.drones) stepDroneTactical(T, d, dt);
+}
+
+/* ------------------- drone FSM (tactical) --------------------------- */
+// STRIKE: TRANSIT (autonomous, cruise, above canopy) to the aim point ->
+// TERMINAL (manual, terminal speed, below canopy) inside STRIKE_TERMINAL_M
+// -> IMPACT on the aim point (one-way; expended). HUNTER: the shared
+// attackGuidance() from launch — COMMIT dash, TERMINAL acquire, IMPACT.
+function stepDroneTactical(T, d, dt){
+  const E = state.teams[T.enemy], D = CONFIG.DRONE, TC = CONFIG.TACTICAL;
+  if (!d.launched || d.downed || d.state === "IMPACT") return;
+  // ENDEX: the fight is decided at the GCS kill. The winner's sorties still
+  // airborne are held where they are — no further strikes are delivered,
+  // so the tally on the end card is the tally at the moment of the kill
+  // (the loser's airframes still play out their link loss below).
+  if (state.winner === T.side && d.role === "STRIKE") return;
+  const label = shortId(T, d);
+
+  // Battery: every airborne second in this mode is transit, dash or terminal.
+  d.airT += dt;
+  d.batt = clamp(100 * (1 - d.airT / D.ENDURANCE_S), 0, 100);
+  if (d.batt < 30 && !d.lowBatt){
+    d.lowBatt = true;
+    addLog(T.side, label + " BATTERY 30 PCT // ENDURANCE LIMITED");
+  }
+  if (d.batt <= 0){
+    d.downed = true; d.state = "DOWN";
+    addLog(T.side, label + " DOWN // BATTERY EXHAUSTED " + gridRef(d.x, d.y));
+    return;
+  }
+
+  // Own GCS destroyed: C2 severed.
+  if (T.gcs.destroyed && !d.linkLost){
+    d.linkLost = true; d.linkLostT = state.t; d.state = "LINK LOST";
+    addLog(T.side, label + " C2 LINK LOST // NO OPERATOR IN THE LOOP");
+  }
+  if (d.linkLost){
+    d.spd = Math.max(0, d.spd - 2 * dt);
+    d.agl = Math.max(0, d.agl - 4 * dt);
+    if (state.t - d.linkLostT > 8 && d.state !== "DOWN"){
+      d.downed = true; d.state = "DOWN";
+      addLog(T.side, label + " DOWN " + gridRef(d.x, d.y));
+    }
+    moveDrone(d, dt);
+    return;
+  }
+
+  const want = { x: 0, y: 0, spd: D.CRUISE_MPS, agl: D.ALT_TRANSIT_AGL };
+  if (d.role === "HUNTER"){
+    if (attackGuidance(T, d, E, dt, want)) return;
+  } else if (d.state === "TRANSIT"){
+    want.x = d.aim.x; want.y = d.aim.y;
+    if (dist(d.x, d.y, d.aim.x, d.aim.y) < TC.STRIKE_TERMINAL_M){
+      d.state = "TERMINAL";
+      addLog(T.side, label + " TERMINAL PHASE // PILOT ON MANUAL CONTROL // " + state.obj.name);
+    }
+  } else if (d.state === "TERMINAL"){
+    want.x = d.aim.x; want.y = d.aim.y;
+    want.spd = D.TERMINAL_MPS; want.agl = D.ALT_TERMINAL_AGL;
+    if (dist(d.x, d.y, d.aim.x, d.aim.y) < D.IMPACT_RANGE_M){
+      d.state = "IMPACT"; d.spd = 0; T.delivered++;
+      state.explosions.push({ x: d.aim.x, y: d.aim.y, t0: state.t, r: 110 });
+      addLog(T.side, label + " IMPACT " + state.obj.name + " " + gridRef(d.x, d.y) +
+        " // STRIKE DELIVERED // " + T.delivered + " OF " + TC.SORTIES[T.side] + " ON TARGET");
+      return;
+    }
+  }
+
+  steerToward(d, want.x, want.y, dt);
+  d.spd = d.spd + clamp(want.spd - d.spd, -6 * dt, 6 * dt);
+  d.agl = d.agl + clamp(want.agl - d.agl, -D.CLIMB_MPS * dt, D.CLIMB_MPS * dt);
+  moveDrone(d, dt);
+}
+
+/* ------------------- master step (tactical) ------------------------- */
+function stepSimTactical(dt){
+  state.t += dt;
+  const B = state.teams.BLUFOR, O = state.teams.OPFOR;
+
+  for (const T of [B, O]){
+    T.gcs.transmitting = uplinkActiveTac(T);
+    for (const d of T.drones) d.videoOn = videoActiveTac(T, d);
+    stepTeamTactical(T, dt);
+  }
+  if (state.t >= state.nextScanT){
+    state.nextScanT = state.t + CONFIG.CUAS.SCAN_S;
+    doScansTactical();
+    for (const T of [B, O]){
+      if (T.gcs.transmitting) state.pulses.push({ x: T.gcs.x, y: T.gcs.y, t0: state.t, c: T.color });
+      for (const d of T.drones) if (d.videoOn) state.pulses.push({ x: d.x, y: d.y, t0: state.t, c: T.color });
+    }
+  }
+  state.pulses = state.pulses.filter(p => state.t - p.t0 < 2.2);
+
+  // Stalemate: nothing airborne, nothing left to launch, and no reserve
+  // hunter that could still go on the fix held. With no emitter left on
+  // either side, neither DF effort can improve its fix.
+  if (!state.winner && !state.stalemate){
+    const quiet = T => airborne(T) === 0 &&
+      !T.drones.some(d => d.role === "STRIKE" && !d.launched) &&
+      !(T.hunter && !T.hunter.launched && T.est.solved && T.est.cep < CONFIG.FIX.PUSH_CEP_M);
+    if (quiet(B) && quiet(O)){
+      state.stalemate = true; state.endT = state.t;
+      addLog("SYS", "ENDEX // STALEMATE " + fmtT(state.t) + " // BOTH GCS SURVIVE // STRIKES DELIVERED BLUFOR " +
+        B.delivered + " // OPFOR " + O.delivered);
+    }
+  }
+
+  // Phase tracker.
+  const anyLaunch = B.drones.some(d => d.launched) || O.drones.some(d => d.launched);
+  const anyFix = B.flags.fixed || O.flags.fixed;
+  const anyCommit = B.flags.committed || O.flags.committed;
+  if (state.winner || state.stalemate) state.phase = "ENDEX";
+  else if (anyCommit) state.phase = "PHASE IV // ATTACK";
+  else if (anyFix) state.phase = "PHASE III // FIX";
+  else if (anyLaunch) state.phase = "PHASE II // STRIKE SORTIES";
+  else state.phase = "PHASE I // EMPLACEMENT";
+
+  endOfMatchTactical();
+}
+
+function endOfMatchTactical(){
+  if (state.endShown || !(state.winner || state.stalemate) || state.t - state.endT <= 5) return;
+  state.endShown = true; state.playing = false;
+  const B = state.teams.BLUFOR, O = state.teams.OPFOR;
+  const tally = "STRIKES DELIVERED ON " + state.obj.name + " // BLUFOR " + B.delivered + " // OPFOR " + O.delivered;
+  const title = document.getElementById("endTitle"), sub = document.getElementById("endSub");
+  if (state.winner){
+    const W = state.winner, L = state.teams[W].enemy;
+    title.textContent = "ENDEX // " + W + " VICTORY";
+    title.style.color = CONFIG.COLORS[W];
+    const tagline = state.teams[W].emcon.emconLabel === "INTERMITTENT"
+      ? "EMISSIONS DISCIPLINE DECIDED THE FIGHT"
+      : "DETECTION TIMELINE DECIDED THE FIGHT";
+    sub.innerHTML = L + " GCS DESTROYED BY " + W + " " + state.killer.slice(W.length + 1) +
+      " AT " + fmtT(state.endT) + " // " + tagline + "<br>" + tally;
+  } else {
+    title.textContent = "ENDEX // STALEMATE";
+    title.style.color = CONFIG.COLORS.RF;
+    // Say why: either nobody ever launched a hunter, or a hunter went and
+    // was lost searching (bad fix, battery) without acquiring.
+    const hunted = [B, O].filter(T => T.flags.committed).map(T => T.side);
+    const why = hunted.length
+      ? "HUNTER-KILLER LOST WITHOUT ACQUIRING (" + hunted.join(", ") + ")"
+      : "NO HUNTER-KILLER LAUNCHED";
+    sub.innerHTML = "BOTH GCS SURVIVE // STRIKE PACKAGES EXPENDED // " + why + " // " +
+      fmtT(state.endT) + "<br>" + tally;
+  }
+  document.getElementById("endcard").classList.remove("hidden");
+  updatePlayBtn();
 }
 
 /* ======================= RENDERING ================================== */
@@ -1093,6 +1502,24 @@ function drawNAIs(){
     ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
     ctx.fillText(T.nai, p1.x + 5, p1.y + 13);
   }
+  // Tactical mode: the contested objective both strike packages fly into.
+  if (state.obj){
+    const o = state.obj, p = W2S(o.x, o.y), rs = o.r * view.scale;
+    ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2;
+    ctx.strokeStyle = hexA(CONFIG.COLORS.RF, 0.45);
+    ctx.beginPath(); ctx.arc(p.x, p.y, rs, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = hexA(CONFIG.COLORS.RF, 0.6);
+    ctx.beginPath();
+    ctx.moveTo(p.x - 5, p.y); ctx.lineTo(p.x + 5, p.y);
+    ctx.moveTo(p.x, p.y - 5); ctx.lineTo(p.x, p.y + 5);
+    ctx.stroke();
+    ctx.fillStyle = hexA(CONFIG.COLORS.RF, 0.75);
+    ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = "center";
+    ctx.fillText(o.name, p.x, p.y - rs - 6);
+    ctx.textAlign = "left";
+  }
   ctx.restore();
 }
 
@@ -1114,16 +1541,19 @@ function drawRFRings(){
 function drawTrails(){
   ctx.save(); ctx.lineWidth = 1.2;
   for (const side of ["BLUFOR", "OPFOR"]){
-    const d = state.teams[side].drone;
-    if (d.trail.length < 2) continue;
-    ctx.strokeStyle = hexA(state.teams[side].color, 0.30);
-    ctx.beginPath();
-    d.trail.forEach((p, i) => {
-      const s = W2S(p.x, p.y);
-      i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y);
-    });
-    const cur = W2S(d.x, d.y); ctx.lineTo(cur.x, cur.y);
-    ctx.stroke();
+    for (const d of teamDrones(state.teams[side])){
+      if (d.trail.length < 2) continue;
+      // Expended and downed airframes leave a fainter trace.
+      const live = d.launched && !d.downed && d.state !== "IMPACT";
+      ctx.strokeStyle = hexA(state.teams[side].color, live ? 0.30 : 0.12);
+      ctx.beginPath();
+      d.trail.forEach((p, i) => {
+        const s = W2S(p.x, p.y);
+        i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y);
+      });
+      const cur = W2S(d.x, d.y); ctx.lineTo(cur.x, cur.y);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
@@ -1169,22 +1599,25 @@ function drawDroneTracks(){
   ctx.save();
   const fam = getComputedStyle(document.body).fontFamily;
   for (const side of ["BLUFOR", "OPFOR"]){
-    const T = state.teams[side], tk = T.droneTrack;
-    if (!tk) continue;
-    const age = state.t - tk.t;
-    if (age > 8) continue;
-    const a = (1 - age / 8) * 0.75;
-    const s = W2S(tk.x, tk.y);
-    ctx.strokeStyle = hexA(T.color, a); ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.moveTo(s.x, s.y - 7); ctx.lineTo(s.x + 7, s.y);
-    ctx.lineTo(s.x, s.y + 7); ctx.lineTo(s.x - 7, s.y);
-    ctx.closePath(); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = hexA(T.color, a * 0.9);
-    ctx.font = "8px " + fam;
-    ctx.fillText("TRK", s.x + 10, s.y + 3);
+    const T = state.teams[side];
+    // Orbit mode keeps one track; tactical mode one per enemy airframe.
+    const tracks = T.tracks ? Object.values(T.tracks) : (T.droneTrack ? [T.droneTrack] : []);
+    for (const tk of tracks){
+      const age = state.t - tk.t;
+      if (age > 8) continue;
+      const a = (1 - age / 8) * 0.75;
+      const s = W2S(tk.x, tk.y);
+      ctx.strokeStyle = hexA(T.color, a); ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y - 7); ctx.lineTo(s.x + 7, s.y);
+      ctx.lineTo(s.x, s.y + 7); ctx.lineTo(s.x - 7, s.y);
+      ctx.closePath(); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = hexA(T.color, a * 0.9);
+      ctx.font = "8px " + fam;
+      ctx.fillText("TRK", s.x + 10, s.y + 3);
+    }
   }
   ctx.restore();
 }
@@ -1273,9 +1706,8 @@ function drawUnits(){
       }
       hits.push({ x: p.x, y: p.y, r: 18, type: "gcs", side, id: T.gcs.id });
     }
-    // Drone.
-    {
-      const d = T.drone;
+    // Drones (one in orbit mode; the whole package in tactical mode).
+    for (const d of teamDrones(T)){
       const p = W2S(d.x, d.y);
       if (d.launched && d.state !== "IMPACT"){
         ctx.save();
@@ -1295,9 +1727,17 @@ function drawUnits(){
         }
         ctx.stroke();
         ctx.restore();
+        // Hunter-killer: ringed, so the GCS-bound airframe reads apart
+        // from the strike stream.
+        if (d.role === "HUNTER" && !d.downed){
+          ctx.strokeStyle = hexA(CONFIG.COLORS.RF, 0.75); ctx.lineWidth = 1;
+          ctx.setLineDash([2, 2]);
+          ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, Math.PI * 2); ctx.stroke();
+          ctx.setLineDash([]);
+        }
         ctx.fillStyle = hexA(T.color, 0.9);
         ctx.font = "8px " + fam;
-        ctx.fillText("sUAS-1", p.x + 10, p.y + 3);
+        ctx.fillText(shortId(T, d) + (d.role === "HUNTER" ? " HK" : ""), p.x + 10, p.y + 3);
         if (d.videoOn && !d.downed){
           ctx.fillStyle = hexA(CONFIG.COLORS.RF, 0.9);
           ctx.fillText("TX", p.x + 10, p.y - 8);
@@ -1314,13 +1754,14 @@ function drawExplosions(){
     const age = state.t - e.t0;
     if (age > 3.2) continue;
     const p = W2S(e.x, e.y);
+    const R = e.r || 260;   // GCS kill by default; strike impacts pass a smaller ring
     if (age < 0.4){
       ctx.fillStyle = `rgba(255,220,150,${0.85 * (1 - age / 0.4)})`;
-      ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y, 16 * Math.sqrt(R / 260), 0, Math.PI * 2); ctx.fill();
     }
     ctx.strokeStyle = `rgba(255,150,80,${0.7 * (1 - age / 3.2)})`;
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(p.x, p.y, age / 3.2 * 260 * view.scale + 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x, p.y, age / 3.2 * R * view.scale + 6, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();
 }
@@ -1372,7 +1813,8 @@ function drawHUD(w, h){
   const topY = Math.max(view.oy, 0);
   const leftX = Math.max(view.ox, 0);
   const rightX = Math.min(view.ox + world.size * view.scale, w);
-  const cw = 212, ch = 92, pad = 10;
+  const tactical = state.mode === "tactical";
+  const cw = 212, ch = tactical ? 110 : 92, pad = 10;
   // Below the AO label line; indented 28 px so the left-edge northing grid
   // labels stay readable beside the BLUFOR card (mirrored on the right for
   // symmetry). Panes too narrow for two cards skip the HUD entirely.
@@ -1402,25 +1844,46 @@ function drawHUD(w, h){
       ctx.fillText(v, x0 + cw - pad, y);
       ctx.textAlign = "left";
     };
-    // Drone status + battery.
-    const dState = !d.launched ? "PREFLIGHT" : d.downed ? "DOWN" : d.state;
-    const hot = d.state === "COMMIT" || d.state === "TERMINAL";
-    row(y0 + 40, "sUAS-1  " + dState,
-      d.launched && !d.downed ? "BATT " + Math.round(d.batt) + "%" : "--",
-      hot ? hexA(CONFIG.COLORS.RF, 0.95) : (d.batt < 30 && d.launched ? hexA(CONFIG.COLORS.OPFOR, 0.95) : null));
+    let y = y0 + 40;
+    if (tactical){
+      // Package status: sorties flown of the plan, airborne now, strikes
+      // delivered, and the hunter-killer's state.
+      const n = CONFIG.TACTICAL.SORTIES[side], air = airborne(T);
+      row(y, "SORTIES " + T.flown + "/" + n + " FLOWN", "AIRBORNE " + air,
+        air ? hexA(CONFIG.COLORS.RF, 0.95) : null);
+      const hk = T.hunter;
+      let hs = "NO HK RESERVE", hc = null;
+      if (hk){
+        if (!hk.launched) hs = "HK IN RESERVE";
+        else if (hk.downed){ hs = "HK DOWN"; hc = hexA(CONFIG.COLORS.OPFOR, 0.95); }
+        else if (hk.state === "IMPACT"){ hs = "HK IMPACT"; hc = hexA(CONFIG.COLORS.RF, 0.95); }
+        else { hs = "HK " + hk.state; hc = hexA(CONFIG.COLORS.RF, 0.95); }
+      }
+      row(y + 18, "DELIVERED " + T.delivered, hs, hc);
+      y += 36;
+    } else {
+      // Drone status + battery.
+      const dState = !d.launched ? "PREFLIGHT" : d.downed ? "DOWN" : d.state;
+      const hot = d.state === "COMMIT" || d.state === "TERMINAL";
+      row(y, "sUAS-1  " + dState,
+        d.launched && !d.downed ? "BATT " + Math.round(d.batt) + "%" : "--",
+        hot ? hexA(CONFIG.COLORS.RF, 0.95) : (d.batt < 30 && d.launched ? hexA(CONFIG.COLORS.OPFOR, 0.95) : null));
+      y += 18;
+    }
     // Collection: LOBs held and fix CEP against the enemy GCS. Early
     // solutions carry the jitter sentinel; hide CEP until it is meaningful
     // (same 1600 m threshold the ellipse layer uses).
-    row(y0 + 58, "LOBS " + T.meas.length,
+    row(y, "LOBS " + T.meas.length,
       T.est.solved && T.est.cep < 1600 ? "CEP " + Math.round(T.est.cep) + "M" : "NO FIX");
     // Bottom line: engagement status.
     let st = "SEARCHING", sc = null;
     if (T.gcs.destroyed){ st = "GCS DESTROYED"; sc = hexA(CONFIG.COLORS.OPFOR, 0.95); }
     else if (T.flags.committed){ st = "ATTACK COMMITTED"; sc = hexA(CONFIG.COLORS.RF, 0.95); }
+    else if (T.flags.commitHeld){ st = "COMMIT HELD // PILOTS BUSY"; sc = hexA(CONFIG.COLORS.RF, 0.95); }
     else if (T.flags.fixed) st = "FIX HELD";
     else if (T.flags.crossFix) st = "CROSS-FIX FORMING";
     else if (T.flags.firstLOB) st = "COLLECTING";
-    row(y0 + 76, "STATUS", st, sc);
+    row(y + 18, "STATUS", st, sc);
     ctx.restore();
   }
 }
@@ -1463,10 +1926,18 @@ function renderPanel(){
   const T = state.teams[side], E = state.teams[T.enemy];
   let html = "";
   if (type === "drone"){
-    const d = T.drone;
+    const d = teamDrones(T).find(x => x.id === id);
+    if (!d){ el.innerHTML = `<div class="none">SELECT A UNIT ON THE MAP</div>`; return; }
     const kts = Math.round(d.spd * 1.944);
-    html += `<div class="hdr" style="color:${T.color}">${id} // ARMED FPV sUAS</div>`;
+    const roleTx = d.role === "HUNTER" ? "HUNTER-KILLER FPV sUAS" : d.role === "STRIKE" ? "STRIKE FPV sUAS" : "ARMED FPV sUAS";
+    html += `<div class="hdr" style="color:${T.color}">${id} // ${roleTx}</div>`;
     html += kv("STATE", d.state, d.state === "TERMINAL" || d.state === "COMMIT" ? CONFIG.COLORS.RF : null);
+    if (d.role === "STRIKE"){
+      html += kv("TASKING", `SORTIE ${d.sortie} // TGT ${state.obj.name}`);
+      if (!d.launched) html += kv("PLANNED LAUNCH", fmtT(d.planT));
+    } else if (d.role === "HUNTER"){
+      html += kv("TASKING", d.launched && T.est.solved ? "HOSTILE GCS " + gridRef(T.est.p.x, T.est.p.y) : "RESERVE // AWAITING FIX");
+    }
     html += kv("AIRSPEED", `${d.spd.toFixed(0)} M/S (${kts} KTS)`);
     html += kv("ALT", `${Math.round(d.agl)} M AGL`);
     html += kv("BATTERY", `${Math.round(d.batt)} PCT`, d.batt < 30 ? CONFIG.COLORS.OPFOR : null);
@@ -1479,7 +1950,16 @@ function renderPanel(){
     html += kv("STATUS", T.gcs.destroyed ? "DESTROYED" : "OPERATIONAL", T.gcs.destroyed ? CONFIG.COLORS.OPFOR : null);
     html += kv("EMCON", T.emcon.emconLabel, T.emcon.emconLabel === "CONTINUOUS" ? CONFIG.COLORS.RF : null);
     html += kv("C2 UPLINK", T.gcs.transmitting ? "TRANSMITTING" : "SILENT", T.gcs.transmitting ? CONFIG.COLORS.RF : null);
-    html += kv("CONTROLLING", T.drone.id);
+    if (T.drones){
+      const linked = T.drones.filter(droneLinked).map(d => shortId(T, d));
+      html += kv("CONTROLLING", linked.length ? linked.join(", ") : "--");
+      html += kv("PILOT STATIONS", `${linked.length} OF ${T.pilots} BUSY`, linked.length >= T.pilots ? CONFIG.COLORS.RF : null);
+      html += kv("STRIKE PACKAGE", `${T.flown} OF ${CONFIG.TACTICAL.SORTIES[side]} FLOWN // ${T.delivered} DELIVERED`);
+      html += kv("HUNTER-KILLER", T.hunter ? (T.hunter.launched ? T.hunter.state : "IN RESERVE") : "NONE",
+        T.hunter && T.hunter.launched && !T.hunter.downed ? CONFIG.COLORS.RF : null);
+    } else {
+      html += kv("CONTROLLING", T.drone.id);
+    }
     html += kv("POSIT", gridRef(T.gcs.x, T.gcs.y));
     html += kv("THREAT LOBS HELD", `${E.meas.length} (SIM TRUTH)`, E.meas.length > 20 ? CONFIG.COLORS.OPFOR : null);
     html += kv("THREAT FIX CEP", E.est.solved ? Math.round(E.est.cep) + " M (SIM TRUTH)" : "NO FIX");
@@ -1511,11 +1991,71 @@ cvs.addEventListener("click", ev => {
 });
 
 /* ---------------------- CONTROLS ------------------------------------ */
+// Featured scenarios per mode: seeds whose engagements were observed to
+// produce instructive outcomes (see README). The first entry is the mode's
+// default seed.
+const FEATURED = {
+  orbit: [
+    [20260719, "Standard Engagement (BLUFOR)"],
+    [66,       "Discipline Wins, Fast (BLUFOR)"],
+    [57,       "Deliberate Fix (BLUFOR)"],
+    [41,       "OPFOR Prevails"],
+    [59,       "Close Race (OPFOR)"]
+  ],
+  tactical: [
+    [12, "Standard Engagement (BLUFOR)"],
+    [26, "Discipline Wins, Fast (BLUFOR)"],
+    [5,  "Final Push (BLUFOR)"],
+    [18, "Close Race (BLUFOR)"],
+    [41, "OPFOR Prevails"],
+    [14, "Lopsided Collection (Stalemate)"]
+  ]
+};
+const defaultSeed = mode => FEATURED[mode].length ? FEATURED[mode][0][0] : CONFIG.SEED;
+
+function populateScenarios(mode){
+  const sel = document.getElementById("scenario");
+  sel.innerHTML = "";
+  for (const [seed, label] of FEATURED[mode]){
+    const o = document.createElement("option");
+    o.value = String(seed); o.textContent = label;
+    sel.appendChild(o);
+  }
+  const c = document.createElement("option");
+  c.value = "custom"; c.hidden = true; c.textContent = "Custom Seed";
+  sel.appendChild(c);
+}
+// Point the dropdown at the current seed: a featured entry if it is one,
+// else the (unhidden) Custom entry.
+function syncScenarioSelect(seed){
+  const sel = document.getElementById("scenario");
+  if (sel.querySelector(`option[value="${seed}"]`)) sel.value = String(seed);
+  else { sel.querySelector('option[value="custom"]').hidden = false; sel.value = "custom"; }
+}
+function reflectMode(mode){
+  document.querySelectorAll("#modeGrp button").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+  document.getElementById("modeTag").textContent = mode === "tactical" ? " // TACTICAL" : "";
+  populateScenarios(mode);
+}
+// Mode switch keeps the seed: same terrain and emplacements, different air
+// plan — the most direct way to compare the two.
+function setMode(mode){
+  if (state.mode === mode) return;
+  state.playing = false; updatePlayBtn();
+  reflectMode(mode);
+  resetSim(state.seed, mode);
+  syncScenarioSelect(state.seed);
+  state.playing = true; updatePlayBtn();
+}
+document.querySelectorAll("#modeGrp button").forEach(b => {
+  b.addEventListener("click", () => setMode(b.dataset.mode));
+});
+
 function updatePlayBtn(){
   document.getElementById("btnPlay").textContent = state.playing ? "Pause" : "Play";
 }
 document.getElementById("btnPlay").addEventListener("click", () => {
-  if (state.winner && state.endShown) return;
+  if (state.endShown) return;   // match over (victory or tactical stalemate): Replay / Random from the end card
   state.playing = !state.playing;
   updatePlayBtn();
 });
@@ -1572,26 +2112,28 @@ function loop(ts){
 
 /* ---------------------- INIT ---------------------------------------- */
 resizeCanvas();
-// Deep link: ?seed=<n> loads a specific engagement (&play=1 starts it), so
-// external pages — e.g. the results dashboard — can link any statistic
-// straight to the watchable battle behind it. Determinism makes the link a
-// complete reproduction, not an approximation.
+// Deep link: ?seed=<n> loads a specific engagement (&play=1 starts it;
+// &mode=tactical selects the tactical mode), so external pages — e.g. the
+// results dashboard — can link any statistic straight to the watchable
+// battle behind it. Determinism makes the link a complete reproduction,
+// not an approximation.
 // Guarded so the file also loads in headless harnesses (the golden-fixture
 // generator runs this script in a Node vm with no location/URLSearchParams).
-let qsSeed = NaN, qsPlay = false;
+let qsSeed = NaN, qsPlay = false, qsMode = "";
 try {
   const qs = new URLSearchParams(location.search);
   qsSeed = Number.parseInt(qs.get("seed") ?? "", 10);
   qsPlay = qs.get("play") === "1";
+  qsMode = String(qs.get("mode") ?? "");
 } catch { /* not a browser: no deep link */ }
+const initMode = qsMode === "tactical" ? "tactical" : "orbit";
+reflectMode(initMode);
 if (Number.isFinite(qsSeed) && qsSeed >= 0){
-  resetSim(qsSeed);
-  const sel = document.getElementById("scenario");
-  if (sel.querySelector(`option[value="${qsSeed}"]`)) sel.value = String(qsSeed);
-  else { sel.querySelector('option[value="custom"]').hidden = false; sel.value = "custom"; }
+  resetSim(qsSeed, initMode);
+  syncScenarioSelect(qsSeed);
   if (qsPlay){ state.playing = true; updatePlayBtn(); }
 } else {
-  resetSim(CONFIG.SEED);
+  resetSim(defaultSeed(initMode), initMode);
 }
 requestAnimationFrame(loop);
 </script>

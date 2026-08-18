@@ -9,9 +9,26 @@ DEVELOPMENT_HISTORY.md, MONTE_CARLO.md, PARAMETERS.md, CHANGELOG.md.
 
 **Same-seed determinism is this project's API.** The sibling repo
 [fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp) contains a TypeScript
-port of the simulation core in `index.html` (lines ~218–999: `CONFIG`
-through `stepSim()`), with parity proven by golden-master fixtures
-generated FROM this file. Consequences:
+port of the simulation core in `index.html` — the engine is everything
+before `RENDERING` (`CONFIG` through the end of the `TACTICAL MODE`
+section); today the port covers the orbit-mode part of it, see below —
+with parity proven by golden-master fixtures generated FROM this file.
+
+The engine has two modes, selected by `resetSim(seed, mode)` /
+`state.mode`: `"orbit"` (the original engagement, and the default whenever
+`resetSim(seed)` is called without a mode — which is what the fixture
+generator, the 3D viewer and the study scripts do) and `"tactical"` (the
+multi-FPV sortie-stream plan; see DESIGN_NOTES.md "Tactical mode"). The
+parity contract currently covers **orbit mode only**: fpv-sim-mcp's engine,
+tools and fixtures are orbit-only, so tactical-mode behavior can change
+freely for now, while orbit mode's cannot. Orbit-mode code and the shared
+helpers (`collectUplinkLOBs`, `collectDownlink`, `attackGuidance`,
+`updateFix`, RF/terrain, `makeTeam`, the emplacement half of `resetSim`)
+are under the contract; the `TACTICAL MODE` section is not, but must never
+run — or draw from the RNG — when `state.mode === "orbit"`. Porting
+tactical mode to fpv-sim-mcp (engine + a `mode` input on the tools + a
+second fixture set), then extending the study/dashboard and the 3D viewer,
+are the open follow-ups. Consequences:
 
 - Any edit that changes engagement outcomes for a given seed is a
   **breaking change**: it invalidates fpv-sim-mcp's fixtures AND the
@@ -47,7 +64,9 @@ generated FROM this file. Consequences:
 ## Layout
 
 - `index.html` — the entire sim application (zero deps, GitHub Pages
-  serves it at the root URL). Supports `?seed=<n>&play=1` deep links.
+  serves it at the root URL). Supports `?seed=<n>&play=1&mode=tactical`
+  deep links. Featured scenarios per mode live in the `FEATURED` table in
+  the controls code (the `<select>` is populated from it).
 - `.github/workflows/parity.yml` — the parity check described above;
   `workflow_dispatch` runs it on demand against any branch.
 - `dashboard.html` — companion results viewer, equally single-file; reads
@@ -101,4 +120,6 @@ here — index.html is the spec, fpv-sim-mcp is the verified headless twin.
 ## Open work
 
 Check the repo's open issues first — outstanding owner actions are
-tracked there, not in this file.
+tracked there, not in this file. Tactical-mode follow-ups (port to
+fpv-sim-mcp, study + dashboard, 3D viewer) are described under the
+invariant above.
