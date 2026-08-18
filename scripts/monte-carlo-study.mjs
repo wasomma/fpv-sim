@@ -9,11 +9,16 @@
  * proven by that repo's tests).
  *
  * Usage:
- *   node scripts/monte-carlo-study.mjs [--quick]
+ *   node scripts/monte-carlo-study.mjs [--quick] [--mode tactical]
  *
  * The fpv-sim-mcp checkout is located via $FPV_SIM_MCP, defaulting to a
  * sibling directory (../fpv-sim-mcp). It must be built (`npm install && npm
  * test` there) first. --quick runs ~1/10th the replications for a smoke pass.
+ * --mode tactical runs the same experiment battery under the tactical
+ * sortie-stream plan (plus one tactical-only paired experiment,
+ * reserve-vs-retask) and writes a separate dataset,
+ * results/monte-carlo-tactical.json — the orbit study's numbers are never
+ * touched by a tactical run.
  *
  * Everything is deterministic: fixed seed lists, one RNG stream per
  * engagement inside the engine. Rerunning this script reproduces every
@@ -28,6 +33,13 @@ const { engine, mcpRoot } = await loadEngine();
 const { runEngagement, aggregateSweep, comparePaired } = engine;
 
 const QUICK = process.argv.includes("--quick");
+const modeIdx = process.argv.indexOf("--mode");
+const MODE = modeIdx !== -1 ? process.argv[modeIdx + 1] : "orbit";
+if (MODE !== "orbit" && MODE !== "tactical") {
+  console.error('--mode must be "orbit" or "tactical".');
+  process.exit(1);
+}
+const TACTICAL = MODE === "tactical";
 const scale = (n) => (QUICK ? Math.max(50, Math.round(n / 10)) : n);
 
 /* Seed lists are contiguous ranges so any result is reproducible from the
@@ -38,7 +50,7 @@ let totalRuns = 0;
 
 function sweep(seedList, overrides, label) {
   const t0 = Date.now();
-  const results = seedList.map((s) => runEngagement(s, overrides));
+  const results = seedList.map((s) => runEngagement(s, overrides, { mode: MODE }));
   totalRuns += results.length;
   const agg = buildAgg(results, aggregateSweep);
   console.error(`  ${label}: ${agg.runs} runs in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
@@ -49,7 +61,8 @@ function sweep(seedList, overrides, label) {
 const study = {
   quick: QUICK,
   kind: "study",
-  label: "Full study",
+  mode: MODE,
+  label: TACTICAL ? "Tactical study" : "Full study",
   meta: {
     generated: new Date().toISOString(),
     sim_commit: gitCommit(REPO_ROOT),
@@ -101,9 +114,20 @@ study.experiments.postureSwap =
     { TEAMS: { BLUFOR: OPFOR_EMCON, OPFOR: BLUFOR_EMCON } });
 
 /* E2c — launch stagger equalized (both launch T+20), EMCON stock. Sizes the
-   one non-EMCON asymmetry so E2a/E2b residuals are interpretable. */
+   one non-EMCON asymmetry so E2a/E2b residuals are interpretable. (In
+   tactical mode launchT is each side's first strike launch time, so the
+   question still applies.) */
 study.experiments.launchEqualized =
   paired("launch stagger equalized", { TEAMS: { OPFOR: { launchT: 20 } } });
+
+/* E2d (tactical only) — no reserve hunter: the next unflown strike airframe
+   is retasked when the fix commits, and there is no final push once the
+   package is expended. The doctrine question unique to the sortie stream:
+   what is holding an airframe back actually worth? */
+if (TACTICAL) {
+  study.experiments.reserveVsRetask =
+    paired("reserve hunter vs retask", { TACTICAL: { RESERVE_HUNTER: false } });
+}
 
 /* ---------------------------------------------------------------- E3
  * Sensitivity: OPFOR uplink duty cycle. Fixed 14 s period (matching the
@@ -134,7 +158,8 @@ console.error("E3 uplink duty-cycle sensitivity...");
 study.meta.total_runs = totalRuns;
 
 mkdirSync(RESULTS_DIR, { recursive: true });
-const outFile = QUICK ? "monte-carlo-quick.json" : "monte-carlo.json";
+const stem = TACTICAL ? "monte-carlo-tactical" : "monte-carlo";
+const outFile = QUICK ? `${stem}-quick.json` : `${stem}.json`;
 const outPath = join(RESULTS_DIR, outFile);
 writeFileSync(outPath, JSON.stringify(study, null, 2));
 console.error(`\nWrote ${outPath} (${totalRuns} engagements)`);
@@ -145,7 +170,8 @@ if (!QUICK) {
   const manifestPath = registerDataset({
     file: outFile,
     kind: "study",
-    label: "Full study",
+    mode: MODE,
+    label: study.label,
     generated: study.meta.generated,
     sim_commit: study.meta.sim_commit,
     engine_commit: study.meta.engine_commit,

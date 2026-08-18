@@ -14,6 +14,70 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
+Not behavior-changing: `index.html` is untouched — everything below builds
+the tactical-mode evidence and tooling around it. The parity contract now
+spans both modes: fpv-sim-mcp v0.3.0 ports tactical mode (engine, a `mode`
+input on its tools, and a second golden-fixture set covering the six
+featured tactical seeds, cross-checked against this file over seeds 1–500
+float-for-float), so from here a same-seed behavior change in *either*
+mode is a breaking change.
+
+### Added
+- **Tactical Monte Carlo study** (`scripts/monte-carlo-study.mjs --mode
+  tactical`; committed dataset
+  [results/monte-carlo-tactical.json](results/monte-carlo-tactical.json),
+  24,800 engagements; write-up in MONTE_CARLO.md "E4"). The orbit battery
+  rerun under the sortie stream — baseline, discipline parity, posture
+  swap, launch stagger, uplink duty dose-response — plus the
+  tactical-only reserve-vs-retask experiment. Headlines: over 10,000
+  seeds the disciplined side wins 24.9% to 18.7% with 56.4% stalemates
+  (an EMCON edge of 1.33:1 — the 1.8:1 quoted from the first 200 seeds
+  was a small-sample overstatement; direction unchanged), the EMCON
+  findings all replicate, and the strongest lever in the plan is the
+  reserve itself: no reserve hunter-killer collapses win rates to 13.8% /
+  6.0% and stalemates to 80.3%. `run-sweep.mjs` gains `--mode` for
+  ad-hoc tactical sweeps; datasets and manifest entries carry a `mode`.
+- **Tactical datasets on the dashboard**: TACTICAL tag in the dataset
+  dropdown, packages-expended stalemate wording, a strikes-delivered
+  tile, the reserve-vs-retask row in the paired card, mode-aware
+  provenance and reproduce commands, and `&mode=tactical` on WATCH links.
+- **Tactical mode in the 3D viewer**: Mode buttons (switching keeps the
+  seed, like the 2D sim), per-mode featured scenarios, the
+  `?mode=tactical` deep link, the full package rendered per airframe
+  (darts, trails, labels, track diamonds), the OBJ TANTO ring and label,
+  package tallies on the team cards, and the STALEMATE end card.
+  `__test.runHeadless(seed, maxT?, mode?)` reproduces both golden-fixture
+  sets in-browser.
+- **PARAMETERS.md documents `CONFIG.TACTICAL`** — the doc again covers
+  every number that drives the simulation. The generator renders the new
+  TACTICAL group (per-side SORTIES/PILOTS table plus the scalar knobs,
+  boolean ranges as true / false) from fpv-sim-mcp's parameter table,
+  which now carries the tactical entries.
+
+### Changed
+- CI: the `parity` workflow regenerates and compares BOTH golden-fixture
+  sets (orbit and tactical) once fpv-sim-mcp main carries the tactical
+  set, with the same per-seed Behavior-changing vs event-log-only
+  classification; until then the tactical file is skipped.
+
+### Fixed
+- Dashboard `fmtS` rounded seconds before carrying the minute, so 119.6 s
+  rendered as "T+1:60" instead of "T+2:00" (visible on the tactical
+  study's fastest-kill row; the bug predates tactical mode).
+
+### Docs
+- MONTE_CARLO.md gains the E4 tactical section and mode-aware
+  reproduction notes; README's tactical section now cites the full-study
+  numbers alongside the original seeds-1–200 figures and points at
+  everything tactical mode now runs in; CLAUDE.md rewritten for the
+  two-mode parity contract.
+
+## [1.5.0] — 2026-08-18
+
+Not behavior-changing for orbit mode: fpv-sim-mcp's golden fixtures
+regenerate byte-identically from this release's `index.html` (verified
+locally and by the `parity` workflow on every constituent merge).
+
 ### Added
 - **Tactical mode** — a second, selectable engagement plan on the same
   terrain, sensors, fix math and terminal guidance (Mode buttons in the
@@ -93,6 +157,18 @@ Monte Carlo results — such a change is called out explicitly as
   "Current State" retitled as the state at the end of the authoring
   session (2026-07-20) with a pointer to this changelog for everything
   since.
+- DEVELOPMENT_HISTORY closing note tightened for the tactical-mode era:
+  what has held constant since the authoring session is the *orbit-mode
+  engagement behavior* (same seed → same engagement), not the
+  `index.html` file itself, which now also carries tactical mode; the
+  "everything since" list gains tactical mode.
+- MONTE_CARLO.md now says explicitly that the study exercises orbit mode
+  only (the README already carried this caveat); extending the study to
+  tactical mode remains open follow-up work.
+- CLAUDE.md manifest note corrected: `results/index.json` entries written
+  before the ad-hoc-sweep work predate the `kind`/`label` fields (the
+  canonical study's entry has neither; the dashboard defaults such
+  entries to STUDY / "Full study").
 
 ## [1.4.0] — 2026-08-16
 
@@ -223,7 +299,8 @@ against this commit's parent).
 - Team status HUD cards, map overlay layout polish, cover-fit map view,
   and sidebar playback controls.
 
-[Unreleased]: https://github.com/wasomma/fpv-sim/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/wasomma/fpv-sim/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/wasomma/fpv-sim/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/wasomma/fpv-sim/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/wasomma/fpv-sim/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/wasomma/fpv-sim/compare/v1.1.0...v1.2.0

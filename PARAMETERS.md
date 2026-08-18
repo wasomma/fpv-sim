@@ -23,7 +23,9 @@ How to read the groups: **DRONE** and **CUAS** are the *hardware* —
 identical for both sides. **FIX** is the *judgment* — how much evidence the
 estimator demands before acting. **TEAMS** is the *doctrine* — and the
 [Monte Carlo study](MONTE_CARLO.md) showed the outcome asymmetry lives
-entirely in that layer.
+entirely in that layer. **TACTICAL** is the *air plan* of tactical mode
+(the sortie stream selected with `?mode=tactical` or the tools'
+`mode: "tactical"`) — orbit mode never reads it.
 
 All values are notional. Change a number, reload, replay the same seed,
 and compare outcomes — or override any of them per-engagement through the
@@ -104,6 +106,29 @@ continuous video downlink and forces the CONTINUOUS EMCON label.
 | `videoOff` | 7 | 0 | s | 0 – 120 | FPV video downlink silent duration. 0 = continuous video (poor discipline; forces the EMCON label to CONTINUOUS). Video also forces on during COMMIT/TERMINAL regardless. |
 | `launchT` | 20 | 26 | s | 0 – 300 | Sim time at which this team's drone launches. |
 
+## TACTICAL — the sortie-stream air plan (tactical mode only)
+
+Package size and pilot-station concurrency per side, the reserve-or-retask
+hunter policy, launch spacing, and the objective's geometry. Orbit mode
+ignores this entire group; `TEAMS.<side>.launchT` doubles as each side's
+first strike launch time.
+
+| Parameter | BLUFOR default | OPFOR default | Unit | Valid range | Description |
+|-----------|----------------|---------------|------|-------------|-------------|
+| `SORTIES` | 5 | 5 | count | 1 – 12 | Strike airframes in this side's package (one-way; expended on impact). |
+| `PILOTS` | 2 | 2 | count | 1 – 6 | Pilot stations at this side's GCS = max FPVs airborne at once, one C2 link each (floored at 1 by the engine). |
+
+| Parameter | Default | Unit | Valid range | Description |
+|-----------|---------|------|-------------|-------------|
+| `OBJ_X` | 1830 | m | 400 – 3600 | Contested objective easting (nominal; jittered per seed like the emplacements). |
+| `OBJ_Y` | 1975 | m | 400 – 3600 | Contested objective northing (nominal; jittered per seed like the emplacements). |
+| `OBJ_RADIUS_M` | 260 | m | 60 – 800 | Objective radius; strike aim points are scattered inside it. |
+| `RESERVE_HUNTER` | true | flag | true / false | Hold one extra FPV back as the dedicated GCS hunter-killer. false: the next unflown strike airframe is retasked when the fix commits (and there is no final push once the package is expended). |
+| `LAUNCH_INTERVAL_S` | 90 | s | 10 – 600 | Nominal spacing between strike launches. |
+| `LAUNCH_JITTER_S` | 20 | s | 0 – 120 | +/- uniform jitter on the launch spacing, drawn per sortie at reset. |
+| `STRIKE_TERMINAL_M` | 380 | m | 100 – 1500 | A strike sortie hands from autonomous transit to manual terminal control this far from its aim point (manual control keys the uplink continuously). |
+| `AIM_SIGMA_M` | 90 | m | 10 – 400 | 1-sigma scatter of strike aim points about the objective center. |
+
 ## Not tunable — structural constants and derived values
 
 | Path | Why not |
@@ -112,6 +137,7 @@ continuous video downlink and forces the CONTINUOUS EMCON label.
 | `SIM_DT` | Structural: the fixed 0.1 s tick is part of the determinism contract. |
 | `SEED` | Pass the seed as a tool argument instead. |
 | `TEAMS.*.emconLabel` | Derived: videoOff === 0 reports CONTINUOUS, anything else INTERMITTENT. |
+| `TACTICAL.OBJ_NAME` | Cosmetic label in the event log; not a number, not a behavior knob. |
 
 Fixed structural values: the world is 4000 × 4000 m, the
 physics tick is 0.1 s, and terrain plus unit emplacements are
