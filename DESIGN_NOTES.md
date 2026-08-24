@@ -184,12 +184,16 @@ STANDBY → TRANSIT → HOLD → COMMIT → TERMINAL → IMPACT
 - **TERMINAL** — inside 380 m of the estimate: descend to 12 m AGL (below
   canopy) at 45 m/s. Visual acquisition of the actual GCS occurs at 220 m.
   If the drone reaches the fix point without acquiring (the fix was wrong),
-  it flies an **outward spiral search**: the commanded search point's radius
-  grows 22 m/s while its tangential speed is held at terminal speed, giving a
-  steep spiral (not repeated laps) that the drone pursues at 45 m/s outward
-  from the estimate (the code comment calls it an "expanding-square"; the
-  geometry is a spiral) — so a modest fix error is recovered quickly and a
-  gross one burns the battery. Impact within 9 m
+  it flies a **bounded expanding search** (logged `AT FIX NO VISUAL`): an
+  orbit around the live fix estimate at 24 m/s whose commanded radius steps
+  170 m per revolution — inside visual range, so successive rings overlap —
+  out to 2× the current fix CEP, never past 650 m and never less than
+  visual range. The operator sweeps where the target can plausibly be, not
+  the AO; a completed pattern with no joy re-flies from the center out,
+  and since the DF nodes keep refining the fix underneath, each pass is
+  better centered. A modest fix error is recovered within a revolution or
+  two; a gross one (a geometrically weak fix that slipped the commit gate)
+  burns the battery searching. Impact within 9 m
   destroys the GCS, ends the match, and logs ENDEX.
 - **LINK LOST** — if your GCS dies while your drone flies, C2 is severed; the
   drone decays speed/altitude and is down 8 s later. This is why killing the
@@ -197,7 +201,12 @@ STANDBY → TRANSIT → HOLD → COMMIT → TERMINAL → IMPACT
 - **Battery** — 1200 s endurance at cruise; 30% triggers a warning; 0% is DOWN.
 
 Steering is a turn-rate-limited (70°/s) heading controller with rate-limited
-speed and climb; movement is simple dead reckoning per 0.1 s tick.
+speed and climb; movement is simple dead reckoning per 0.1 s tick. Commanded
+steering points are confined 150 m inside the AO boundary before the bearing
+is taken, so a drone chasing a synthetic point (a search orbit, a wild fix)
+turns back ahead of the edge instead of pinning against the 30 m world clamp
+and sliding along it — every real objective (GCS, aim points, hold orbits)
+sits well inside the margin, so only runaway targets are ever moved.
 
 ## Tactical mode
 
@@ -297,9 +306,9 @@ its is airborne, no strike airframe is unflown, and it holds no reserve
 hunter that could still go on the fix it has (CEP < `PUSH_CEP_M`); when both
 sides are quiet no emitter remains for either DF effort, neither fix can
 improve, and `state.stalemate` ends the match. Note the hunter-search corner
-case shared with orbit mode: a hunter launched on a bad fix spirals until
-its battery is gone — up to 20 min, during which its own continuous keying
-can get *its* GCS fixed. Phases: EMPLACEMENT → STRIKE SORTIES (first
+case shared with orbit mode: a hunter launched on a bad fix sweeps the fix
+area until its battery is gone — up to 20 min, during which its own
+continuous keying can get *its* GCS fixed. Phases: EMPLACEMENT → STRIKE SORTIES (first
 launch) → FIX → ATTACK (a hunter committed) → ENDEX. The HUD shows sorties
 flown of planned, airborne now, strikes delivered and the hunter's state; the
 GCS panel lists the airframes it is controlling and pilot-station usage; the
