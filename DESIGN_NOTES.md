@@ -292,8 +292,8 @@ sortie the commit **holds** (logged once per hold) until one frees, and the
 hunter then takes priority over the next strike launch; if the fix loosens
 back above the gate while the stations are busy, the hold is lifted. From
 launch it runs `attackGuidance()` — the same COMMIT dash, TERMINAL descent,
-visual acquisition, outward spiral and impact as the orbit drone — against
-the live fix. Impact destroys the enemy GCS, sets the winner, and every
+visual acquisition, bounded expanding search and impact as the orbit drone —
+against the live fix. Impact destroys the enemy GCS, sets the winner, and every
 enemy airframe loses link; the enemy's package is grounded and its unflown
 airframes are logged. The winner's own sorties still airborne are held where
 they are — the fight is decided at the kill, and the strikes-delivered tally

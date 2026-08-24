@@ -101,6 +101,13 @@ over seeds 1–500 float-for-float), so a same-seed behavior change in
   study's fastest-kill row; the bug predates tactical mode).
 
 ### Docs
+- **PARAMETERS.md regenerated** from fpv-sim-mcp's updated parameter
+  table: the five bounded-search/edge-margin `DRONE` knobs (`SEARCH_MPS`,
+  `SEARCH_RING_M`, `SEARCH_CEP_MULT`, `SEARCH_MAX_R_M`, `EDGE_MARGIN_M`)
+  replace the retired `TERMINAL_SEARCH_GROW`.
+- DESIGN_NOTES.md: the tactical hunter paragraph now says "bounded
+  expanding search" — the one "outward spiral" phrase the hunter-search
+  fix missed.
 - MONTE_CARLO.md gains the E4 tactical section and mode-aware
   reproduction notes; README's tactical section now cites the full-study
   numbers alongside the original seeds-1–200 figures and points at
