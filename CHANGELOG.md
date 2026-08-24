@@ -14,13 +14,22 @@ Monte Carlo results — such a change is called out explicitly as
 
 ## [Unreleased]
 
-Not behavior-changing: `index.html` is untouched — everything below builds
-the tactical-mode evidence and tooling around it. The parity contract now
-spans both modes: fpv-sim-mcp v0.3.0 ports tactical mode (engine, a `mode`
-input on its tools, and a second golden-fixture set covering the six
-featured tactical seeds, cross-checked against this file over seeds 1–500
-float-for-float), so from here a same-seed behavior change in *either*
-mode is a breaking change.
+**Behavior-changing** (the hunter-search fix under Fixed): same-seed
+engagements that reach a no-acquisition terminal search — or that ever
+pushed a drone against the world edge — now play out differently in both
+modes, so fpv-sim-mcp's golden fixtures (regenerate both sets there after
+porting the engine change) and the committed Monte Carlo datasets (rerun
+both studies here against the updated build) are invalidated; PARAMETERS.md
+regenerates from that repo's updated parameter table at the same time. The
+featured seeds are barely touched: all five orbit and five of the six
+tactical featured engagements replay identically, only tactical seed 5
+shifts (same BLUFOR search-recovery kill, 8.8 s later). Everything else
+below builds the tactical-mode evidence and tooling around the engine. The
+parity contract spans both modes: fpv-sim-mcp v0.3.0 ports tactical mode
+(engine, a `mode` input on its tools, and a second golden-fixture set
+covering the six featured tactical seeds, cross-checked against this file
+over seeds 1–500 float-for-float), so a same-seed behavior change in
+*either* mode is a breaking change.
 
 ### Added
 - **Tactical Monte Carlo study** (`scripts/monte-carlo-study.mjs --mode
@@ -61,6 +70,32 @@ mode is a breaking change.
   classification; until then the tactical file is skipped.
 
 ### Fixed
+- **Behavior-changing: realistic hunter flight after a miss, and no more
+  invisible-wall boundary sliding.** A terminal search that found nothing
+  at the fix grew its commanded orbit radius without bound (+22 m/s
+  forever), so a hunter-killer that missed ended up circling the entire
+  4 km AO pinned against the 30 m world-edge clamp, sliding along the
+  boundary from corner to corner until battery exhaustion — seed 231513
+  tactical reached a 25 km commanded search radius and spent 1,001 of its
+  ~1,200 flight seconds riding the edge; over seeds 1–200, 52 orbit and 16
+  tactical engagements exhibited the wall-slide. The search is now a
+  bounded expanding orbit around the live fix — radius steps
+  `SEARCH_RING_M` (170 m, inside visual-acquisition range) per revolution
+  at `SEARCH_MPS` (24 m/s), out to `SEARCH_CEP_MULT` (2×) the current fix
+  CEP, capped at `SEARCH_MAX_R_M` (650 m) and floored at visual range,
+  re-sweeping from the center on a completed no-joy pattern — and the
+  search start is logged (`AT FIX NO VISUAL // COMMENCING EXPANDING
+  SEARCH`). Independently, `steerToward` confines every commanded steering
+  point `EDGE_MARGIN_M` (150 m) inside the AO, so flight turns back ahead
+  of the boundary and the world clamp is a never-ridden last-resort
+  invariant (all real objectives sit well inside the margin; across seeds
+  1–200 in both modes no drone now comes within 400 m of an edge).
+  `TERMINAL_SEARCH_GROW` is retired. Net effect on outcomes over seeds
+  1–200: fewer draws (orbit no-kill 69→42, tactical stalemates 113→104) —
+  a bounded search actually recovers misses; seed 231513 turns from a
+  27-minute stalemate into a BLUFOR search-recovery kill at T+09:11. No
+  RNG draws were added or moved, so emplacements and every pre-search
+  timeline are unchanged.
 - Dashboard `fmtS` rounded seconds before carrying the minute, so 119.6 s
   rendered as "T+1:60" instead of "T+2:00" (visible on the tactical
   study's fastest-kill row; the bug predates tactical mode).
