@@ -54,7 +54,11 @@ final push), and terminal-attack geometry.
 | `HOLD_STANDOFF_M` | 600 | m | 100 – 1500 | Holding orbit sits this far forward of own GCS toward the NAI. |
 | `HOLD_RADIUS_M` | 130 | m | 50 – 400 | Holding-orbit radius. |
 | `ACQ_RANGE_M` | 220 | m | 50 – 600 | Range at which the FPV operator visually IDs the GCS in the terminal phase. |
-| `TERMINAL_SEARCH_GROW` | 22 | m/s | 5 – 60 | Expanding-search radius growth when nothing is acquired at the fix point. |
+| `SEARCH_MPS` | 24 | m/s | 5 – 60 | Visual-search airspeed over the fix area when nothing is acquired at the fix point. |
+| `SEARCH_RING_M` | 170 | m | 40 – 600 | Ring spacing per revolution of the expanding search orbit; keep it under ACQ_RANGE_M so successive rings overlap visually. |
+| `SEARCH_CEP_MULT` | 2 | multiplier | 1 – 5 | Maximum search radius as a multiple of the current fix CEP (floored at ACQ_RANGE_M). |
+| `SEARCH_MAX_R_M` | 650 | m | 200 – 2000 | Absolute cap on the search radius; a completed no-joy pattern re-sweeps from the center. |
+| `EDGE_MARGIN_M` | 150 | m | 50 – 500 | Commanded steering points are confined this far inside the AO edge, so flight turns back ahead of the boundary. |
 | `IMPACT_RANGE_M` | 9 | m | 3 – 30 | Detonation range. |
 | `WPT_RADIUS_M` | 70 | m | 20 – 200 | Waypoint capture radius. |
 
