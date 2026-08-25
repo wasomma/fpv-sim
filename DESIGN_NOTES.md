@@ -329,16 +329,17 @@ lines in `resetSim()`, and add the mode dispatch.
 
 ### Character
 
-Over seeds 1–200 with the defaults, the disciplined side wins 27%, the
-continuous emitter 15%, and 58% end in stalemate (mean decided fight ~7 min).
-The higher draw rate against orbit mode's 37% is structural — a package is
-spent in about seven minutes, a third of the orbit fight's exposure window —
-and package size moves it only slowly (8 sorties at 75 s spacing: 31/20/50);
-the seeds that stall are the ones whose sensor–GCS paths are heavily masked,
-and those stall in orbit mode too. The EMCON edge widens from 1.4:1 to
-1.8:1: with terminal keying forced on for both sides, the schedule still
-decides who is fixed first, and the intermittent side spends far less time
-on the air per sortie.
+Over the full 10,000-seed study with the defaults, the disciplined side
+wins 29.7%, the continuous emitter 18.5%, and 51.9% end in stalemate
+(median decided fight ~8 min). The higher draw rate against orbit mode's
+24% is structural — a package is spent in about seven minutes, well under
+half the orbit fight's exposure window — and package size moves it only
+slowly (8 sorties at 75 s spacing over seeds 1–200: 36/21/43); the seeds
+that stall are the ones whose sensor–GCS paths are heavily masked, and
+those stall in orbit mode too. The EMCON edge (1.61:1) sits just under
+orbit's (1.71:1): with terminal keying forced on for both sides, the
+schedule still decides who is fixed first, and the intermittent side
+spends far less time on the air per sortie.
 
 ## Rendering
 
