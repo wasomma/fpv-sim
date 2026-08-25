@@ -1,30 +1,13 @@
 {
   "datasets": [
     {
-      "file": "monte-carlo-tactical.json",
-      "kind": "study",
-      "mode": "tactical",
-      "label": "Tactical study",
-      "generated": "2026-08-18T03:58:56.629Z",
-      "sim_commit": "668799fef3294db3d2a0a58860d66c2feaefbd49",
-      "engine_commit": "3acfc56f571030f377871b645d53a30450040425",
-      "total_runs": 24800,
-      "baseline": {
-        "runs": 10000,
-        "win_rates": {
-          "BLUFOR": 0.249,
-          "OPFOR": 0.187,
-          "STALEMATE": 0.564
-        }
-      }
-    },
-    {
-      "file": "adhoc-df-bearing-error-doubled-8-deg-2026-07-23.json",
+      "file": "adhoc-df-bearing-error-doubled-8-deg-2026-08-24.json",
       "kind": "adhoc",
+      "mode": "orbit",
       "label": "DF bearing error doubled (8 deg)",
-      "generated": "2026-07-23T08:29:15.258Z",
-      "sim_commit": "decd4fa58b07c8eaa1ee3a8ceba5ccaea13658d8",
-      "engine_commit": "dd3c0375ab88cf552cba5507735cb4ee3f468dd8",
+      "generated": "2026-08-24T23:57:52.959Z",
+      "sim_commit": "e597c83e17957395af99cd335a584e8e85cdb54b",
+      "engine_commit": "0d7d1faad5fc687e1eb15d6bd4760a1496079622",
       "total_runs": 1000,
       "overrides": {
         "CUAS": {
@@ -34,24 +17,45 @@
       "baseline": {
         "runs": 1000,
         "win_rates": {
-          "BLUFOR": 0.163,
-          "OPFOR": 0.098,
-          "STALEMATE": 0.739
+          "BLUFOR": 0.146,
+          "OPFOR": 0.144,
+          "STALEMATE": 0.71
+        }
+      }
+    },
+    {
+      "file": "monte-carlo-tactical.json",
+      "kind": "study",
+      "mode": "tactical",
+      "label": "Tactical study",
+      "generated": "2026-08-24T23:33:09.437Z",
+      "sim_commit": "e597c83e17957395af99cd335a584e8e85cdb54b",
+      "engine_commit": "0d7d1faad5fc687e1eb15d6bd4760a1496079622",
+      "total_runs": 24800,
+      "baseline": {
+        "runs": 10000,
+        "win_rates": {
+          "BLUFOR": 0.297,
+          "OPFOR": 0.185,
+          "STALEMATE": 0.519
         }
       }
     },
     {
       "file": "monte-carlo.json",
-      "generated": "2026-07-23T07:04:42.748Z",
-      "sim_commit": "1c0c32719bfe8c5149a7bc5cf711732a1bd62ac3",
-      "engine_commit": "fcab03c52b835a42e872b27391de8420576f3bec",
+      "kind": "study",
+      "mode": "orbit",
+      "label": "Full study",
+      "generated": "2026-08-24T23:14:16.407Z",
+      "sim_commit": "e597c83e17957395af99cd335a584e8e85cdb54b",
+      "engine_commit": "0d7d1faad5fc687e1eb15d6bd4760a1496079622",
       "total_runs": 22800,
       "baseline": {
         "runs": 10000,
         "win_rates": {
-          "BLUFOR": 0.368,
-          "OPFOR": 0.263,
-          "STALEMATE": 0.368
+          "BLUFOR": 0.48,
+          "OPFOR": 0.281,
+          "STALEMATE": 0.239
         }
       }
     }

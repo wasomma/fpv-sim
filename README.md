@@ -49,9 +49,9 @@ claim was put to a real test: the same battle played **22,800 times**
 automatically, counting who wins. The results, in
 **[MONTE_CARLO.md](MONTE_CARLO.md)**:
 
-- Played as shipped, the disciplined team wins 37% of battles, the chatty
-  team 26%, and 37% are draws where neither side ever finds the other —
-  about 3 wins for every 2 of the loud team's.
+- Played as shipped, the disciplined team wins 48% of battles, the chatty
+  team 28%, and 24% are draws where neither side ever finds the other —
+  about 5 wins for every 3 of the loud team's.
 - Give both teams the same radio discipline and the fight goes dead even;
   swap the two teams' radio habits and the advantage swaps with them.
   Whoever talks less wins more, regardless of which team it is.
@@ -173,14 +173,14 @@ packages are spent and neither side can launch a hunter, the result is a
 **stalemate**: both GCS survive.
 
 The tally that matters alongside the winner is *strikes delivered* on the
-objective before the fight ended. Over seeds 1–200 the disciplined side wins
-27%, the continuous emitter 15%, and 58% stall out — the package is spent in
-about seven minutes, a much shorter exposure window than the twenty-minute
-orbit fight, so draws are more common. (The full 10,000-seed study refines
-those first-200 numbers to 24.9% / 18.7% / 56.4% — an EMCON edge of 1.33:1,
-comparable to the orbit fight's 1.40:1 rather than wider; its strongest
-finding is that flying *without* the reserve hunter-killer cuts both sides'
-win rates by half or more — see
+objective before the fight ended. Over the full 10,000-seed study the
+disciplined side wins 29.7%, the continuous emitter 18.5%, and 51.9% stall
+out — the package is spent in about seven minutes, a much shorter exposure
+window than the twenty-minute orbit fight, so draws are far more common
+than orbit's 24%. (The EMCON edge, 1.61:1, is comparable to the orbit
+fight's 1.71:1 rather than wider; the study's strongest finding is that
+flying *without* the reserve hunter-killer cuts both sides' win rates by
+half or more — see
 [MONTE_CARLO.md](MONTE_CARLO.md#e4--the-same-questions-under-tactical-mode).)
 Package size, pilot stations, launch spacing, whether to hold a
 reserve at all, and the objective itself are all in `CONFIG.TACTICAL`.
@@ -203,7 +203,7 @@ approach was chosen over forcing decisive outcomes. See
 **[MONTE_CARLO.md](MONTE_CARLO.md)** for the statistical backing behind the
 EMCON lesson: 22,800 engagements run on the headless engine from
 [fpv-sim-mcp](https://github.com/wasomma/fpv-sim-mcp), showing the
-disciplined side wins 36.8% to 26.3% under stock config, that the advantage
+disciplined side wins 48.0% to 28.1% under stock config, that the advantage
 follows the EMCON posture when postures are swapped, and that win rate
 responds dose-dependently to uplink duty cycle.
 

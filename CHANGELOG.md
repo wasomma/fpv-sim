@@ -17,19 +17,21 @@ Monte Carlo results — such a change is called out explicitly as
 **Behavior-changing** (the hunter-search fix under Fixed): same-seed
 engagements that reach a no-acquisition terminal search — or that ever
 pushed a drone against the world edge — now play out differently in both
-modes, so fpv-sim-mcp's golden fixtures (regenerate both sets there after
-porting the engine change) and the committed Monte Carlo datasets (rerun
-both studies here against the updated build) are invalidated; PARAMETERS.md
-regenerates from that repo's updated parameter table at the same time. The
-featured seeds are barely touched: all five orbit and five of the six
-tactical featured engagements replay identically, only tactical seed 5
-shifts (same BLUFOR search-recovery kill, 8.8 s later). Everything else
-below builds the tactical-mode evidence and tooling around the engine. The
-parity contract spans both modes: fpv-sim-mcp v0.3.0 ports tactical mode
-(engine, a `mode` input on its tools, and a second golden-fixture set
-covering the six featured tactical seeds, cross-checked against this file
-over seeds 1–500 float-for-float), so a same-seed behavior change in
-*either* mode is a breaking change.
+modes. The full downstream sequence is complete within this release:
+fpv-sim-mcp regenerated both golden-fixture sets against the new engine
+(its PR #18, engine parity re-verified over seeds 1–500 float-for-float),
+PARAMETERS.md regenerated from its updated parameter table, and both
+Monte Carlo studies were rerun on the updated build (see the regenerated
+datasets under Changed). The featured seeds are barely touched: all five
+orbit and five of the six tactical featured engagements replay
+identically, only tactical seed 5 shifts (same BLUFOR search-recovery
+kill, 8.8 s later). Everything else below builds the tactical-mode
+evidence and tooling around the engine. The parity contract spans both
+modes: fpv-sim-mcp v0.3.0 ports tactical mode (engine, a `mode` input on
+its tools, and a second golden-fixture set covering the six featured
+tactical seeds, cross-checked against this file over seeds 1–500
+float-for-float), so a same-seed behavior change in *either* mode is a
+breaking change.
 
 ### Added
 - **Tactical Monte Carlo study** (`scripts/monte-carlo-study.mjs --mode
@@ -38,14 +40,15 @@ over seeds 1–500 float-for-float), so a same-seed behavior change in
   24,800 engagements; write-up in MONTE_CARLO.md "E4"). The orbit battery
   rerun under the sortie stream — baseline, discipline parity, posture
   swap, launch stagger, uplink duty dose-response — plus the
-  tactical-only reserve-vs-retask experiment. Headlines: over 10,000
-  seeds the disciplined side wins 24.9% to 18.7% with 56.4% stalemates
-  (an EMCON edge of 1.33:1 — the 1.8:1 quoted from the first 200 seeds
-  was a small-sample overstatement; direction unchanged), the EMCON
-  findings all replicate, and the strongest lever in the plan is the
-  reserve itself: no reserve hunter-killer collapses win rates to 13.8% /
-  6.0% and stalemates to 80.3%. `run-sweep.mjs` gains `--mode` for
-  ad-hoc tactical sweeps; datasets and manifest entries carry a `mode`.
+  tactical-only reserve-vs-retask experiment. Headlines (as regenerated
+  on the bounded-search engine; see Changed): over 10,000 seeds the
+  disciplined side wins 29.7% to 18.5% with 51.9% stalemates (an EMCON
+  edge of 1.61:1 — the 1.8:1 quoted from the first 200 seeds was a
+  small-sample overstatement; direction unchanged), the EMCON findings
+  all replicate, and the strongest lever in the plan is the reserve
+  itself: no reserve hunter-killer collapses win rates to 14.9% / 6.0%
+  and stalemates to 79.2%. `run-sweep.mjs` gains `--mode` for ad-hoc
+  tactical sweeps; datasets and manifest entries carry a `mode`.
 - **Tactical datasets on the dashboard**: TACTICAL tag in the dataset
   dropdown, packages-expended stalemate wording, a strikes-delivered
   tile, the reserve-vs-retask row in the paired card, mode-aware
@@ -64,6 +67,18 @@ over seeds 1–500 float-for-float), so a same-seed behavior change in
   which now carries the tactical entries.
 
 ### Changed
+- **Monte Carlo datasets regenerated on the bounded-search engine**
+  (fpv-sim-mcp `0d7d1fa`; both studies rerun in full, manifest refreshed,
+  and the one committed ad-hoc sweep — DF bearing error doubled —
+  re-swept and re-dated). Searches that previously wandered the AO now
+  recover kills, so outcomes move sharply: orbit baseline 36.8 / 26.3 /
+  36.8 → **48.0 / 28.1 / 23.9** (B / O / S) and tactical 24.9 / 18.7 /
+  56.4 → **29.7 / 18.5 / 51.9**; the orbit EMCON edge is 1.71:1 and the
+  tactical 1.61:1. Every dataset-derived figure in MONTE_CARLO.md, README
+  and DESIGN_NOTES is updated, including one finding that flips:
+  removing the reserve hunter-killer now costs the disciplined side most
+  (−14.4 points to the continuous emitter's −12.8) — whoever converts
+  more fixes into kills has more to lose when the converter goes away.
 - CI: the `parity` workflow regenerates and compares BOTH golden-fixture
   sets (orbit and tactical) once fpv-sim-mcp main carries the tactical
   set, with the same per-seed Behavior-changing vs event-log-only
