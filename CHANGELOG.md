@@ -195,6 +195,11 @@ locally and by the `parity` workflow on every constituent merge).
   `parity` is advisory here (a path-filtered check cannot safely be made
   required); on the fpv-sim-mcp side the `drift` job is a required status
   check on `main`, so a red run there blocks the merge.
+- `scripts/sweep-utils.mjs`: the results directory now honors a
+  `FPV_SIM_RESULTS` environment override (default unchanged: this repo's
+  `results/`), so an external host — the planned desktop app — can run
+  the canonical study and sweep runners against its own data directory.
+  Scripts only; the sim is untouched.
 
 ### Docs
 - DESIGN_NOTES.md corrected against the code (no code change): emplacement
