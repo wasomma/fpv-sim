@@ -11,7 +11,11 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 export const REPO_ROOT = join(import.meta.dirname, "..");
-export const RESULTS_DIR = join(REPO_ROOT, "results");
+/* External hosts (e.g. a desktop app running these runners against its own
+   data directory) may point FPV_SIM_RESULTS elsewhere; default unchanged. */
+export const RESULTS_DIR = process.env.FPV_SIM_RESULTS
+  ? resolve(process.env.FPV_SIM_RESULTS)
+  : join(REPO_ROOT, "results");
 
 export async function loadEngine() {
   const mcpRoot = resolve(process.env.FPV_SIM_MCP ?? join(REPO_ROOT, "..", "fpv-sim-mcp"));
