@@ -32,6 +32,9 @@ statements about the model, not about any real system (see
 An interactive view of these results — including click-to-replay links from
 any statistic to the watchable engagement behind it — lives at
 **[dashboard.html](https://wasomma.github.io/fpv-sim/dashboard.html)**.
+It opens on a finding generated from the selected dataset; deep-link a
+dataset with `?dataset=<file>` (e.g.
+`dashboard.html?dataset=monte-carlo-tactical.json`).
 
 ## Method
 
@@ -66,7 +69,10 @@ both-drones-down). Because every engagement draws from one seeded
   emplacement luck cancel out of the deltas, so 2,000 pairs resolve effects
   that independent samples of that size could not.
 - **Uncertainty** is reported as 95% Wilson score intervals on outcome
-  proportions.
+  proportions. The dashboard's Δ readouts (a sweep against the stock
+  baseline, a paired variant against its stock arm) use the Newcombe
+  hybrid-score interval (method 10) on the difference of two independent
+  proportions; for same-seed arms that interval is conservative.
 - **Stalemates are a first-class outcome**, not discarded: an honest
   estimator that refuses to bless a bad fix produces engagements where
   nobody commits, and how often that happens is itself a finding.

@@ -75,7 +75,23 @@ plan). Consequences:
   `results/index.json` (manifest) and the datasets it lists. Datasets
   carry a `mode` ("orbit" default; tactical entries get a TACTICAL tag,
   packages-expended stalemate wording, a strikes tile, and
-  `&mode=tactical` on their WATCH links).
+  `&mode=tactical` on their WATCH links). Layout is three layers:
+  `#finding` (an auto-generated verdict + the tiles + COPY FINDINGS), key
+  evidence in `#charts > #key` (the paired card for studies; a vs-stock
+  dumbbell for ad-hoc sweeps, reference = the newest same-mode study in
+  the manifest), and `<details id="evidence">` (dose, histograms,
+  `#seedsCard`, `#prov`; collapsed by default). `?dataset=<file>` selects
+  a manifest entry. The pure statistics and finding generator sit between
+  `/* @stats-begin */` and `/* @stats-end */` with no DOM access;
+  `node scripts/check-dashboard-stats.mjs` extracts and checks that block
+  (`.github/workflows/dashboard.yml` runs it in CI) against golden
+  findings for the three committed datasets — regenerate a dataset or
+  change the wording and the goldens in that script must be updated with
+  it. The desktop app's screenshot harness (fpv-sim-app
+  `src/main/screenshots.ts`) depends on those ids and on `.card h2`
+  titles matching `/dose/i`, `/paired/i`,
+  `/timeline|histogram|distribution/i`; keep new card titles clear of
+  those words.
 - `viewer3d.html` — experimental WebGPU 3D viewer, both modes (Mode
   buttons keep the seed; `?mode=tactical` deep link). Contains NO
   simulation code: it fetches `index.html` at runtime and executes its

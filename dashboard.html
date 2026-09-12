@@ -48,6 +48,8 @@
   .tile .swatch{width:9px; height:9px; border-radius:2px; display:inline-block}
   .tile .val{font-size:30px; color:var(--bright); margin:6px 0 2px}
   .tile .sub{font-size:11px; color:var(--dim)}
+  .tile .delta{font-size:11px; color:var(--text); margin-top:5px; font-variant-numeric:tabular-nums}
+  .tile .delta .word{color:var(--dim); font-size:10px; letter-spacing:.14em; text-transform:uppercase}
   .card{background:var(--panel); border:1px solid var(--border); margin-bottom:14px}
   .card h2{
     font-size:11px; letter-spacing:.24em; color:var(--dim); font-weight:600;
@@ -55,6 +57,37 @@
   }
   .card .sub{font-size:12px; color:var(--text); padding:2px 16px 6px; opacity:.85}
   .card .plot{padding:4px 10px 6px}
+  /* finding card: the verdict layer, tiles included */
+  .finding .head{display:flex; align-items:center; gap:12px; padding-right:14px}
+  .finding .head h2{flex:1}
+  .finding button{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    font-family:var(--mono); font-size:11px; letter-spacing:.12em; padding:4px 10px; cursor:pointer;
+  }
+  .finding button:hover{border-color:var(--dim); color:var(--bright)}
+  .finding button[data-state="ok"]{color:var(--blufor-hi); border-color:var(--blufor)}
+  .finding button[data-state="fail"]{color:var(--opfor-hi); border-color:var(--opfor)}
+  #verdict{padding:6px 16px 10px; max-width:88ch; line-height:1.65}
+  #verdict .lead{font-size:15px; color:var(--bright); margin:2px 0 8px}
+  #verdict .lead b{font-weight:600}
+  #verdict ul.clauses{list-style:none; font-size:13px}
+  #verdict ul.clauses li{margin:3px 0; padding-left:1.2em; text-indent:-1.2em}
+  #verdict ul.clauses li::before{content:"▸ "; color:var(--dim)}
+  #verdict code{color:var(--bright)}
+  #verdict .sig{border-bottom:1px dotted var(--dim); cursor:help}
+  #verdict .note{color:var(--dim); font-size:11px; margin-top:8px}
+  .finding .tiles{margin:0; padding:2px 14px 14px}
+  .finding .tile{background:var(--panel2)}
+  /* evidence fold: same voice as details.tbl, at card scale */
+  details.evidence>summary{
+    background:var(--panel); border:1px solid var(--border); padding:12px 16px; margin-bottom:14px;
+    font-size:11px; letter-spacing:.24em; color:var(--dim); text-transform:uppercase; cursor:pointer;
+    list-style:none; user-select:none;
+  }
+  details.evidence>summary::-webkit-details-marker{display:none}
+  details.evidence>summary::before{content:"▸ "}
+  details.evidence[open]>summary::before{content:"▾ "}
+  details.evidence>summary:hover{color:var(--text); border-color:var(--dim)}
   svg{display:block; width:100%; height:auto}
   svg text{font-family:var(--mono)}
   .legend{display:flex; flex-wrap:wrap; gap:16px; padding:2px 16px 10px; font-size:11px; color:var(--text)}
@@ -92,13 +125,13 @@
   <div class="title"><b>MONTE CARLO RESULTS</b> <span>// FPV sUAS vs cUAS // AO KATANA (NOTIONAL)</span></div>
   <nav>
     <label for="kindFilter" style="font-size:10px;letter-spacing:.2em;color:var(--dim)">SHOW</label>
-    <select id="kindFilter">
+    <select id="kindFilter" autocomplete="off">
       <option value="all">ALL DATASETS</option>
       <option value="study">STUDIES ONLY</option>
       <option value="adhoc">AD-HOC ONLY</option>
     </select>
     <label for="dataset" style="font-size:10px;letter-spacing:.2em;color:var(--dim)">DATASET</label>
-    <select id="dataset"></select>
+    <select id="dataset" autocomplete="off"></select>
     <a href="index.html">OPEN SIMULATION</a>
     <a href="https://github.com/wasomma/fpv-sim/blob/main/MONTE_CARLO.md">READ THE STUDY</a>
   </nav>
@@ -106,24 +139,41 @@
 <main>
   <div id="status">Loading results&hellip;</div>
   <div id="content" hidden>
-    <div class="tiles" id="tiles"></div>
-    <div id="charts"></div>
-    <div class="card" id="seedsCard">
-      <h2>Notable engagements — click to watch</h2>
-      <div class="sub">Every statistic on this page is an aggregate of individually replayable battles. These links open the simulation at the exact seed.</div>
-      <div id="seeds"></div>
+    <section class="card finding" id="finding">
+      <div class="head">
+        <h2>Finding</h2>
+        <button type="button" id="copyBtn">COPY FINDINGS</button>
+      </div>
+      <div class="sub">Generated from this dataset — every number below also appears in the cards that follow.</div>
+      <div id="verdict"></div>
+      <div class="tiles" id="tiles"></div>
+    </section>
+    <div id="charts">
+      <div id="key"></div>
+      <details id="evidence" class="evidence">
+        <summary>All evidence — charts, notable engagements, provenance</summary>
+        <div id="more"></div>
+        <div class="card" id="seedsCard">
+          <h2>Notable engagements — click to watch</h2>
+          <div class="sub">Every statistic on this page is an aggregate of individually replayable battles. These links open the simulation at the exact seed.</div>
+          <div id="seeds"></div>
+        </div>
+        <footer id="prov"></footer>
+      </details>
     </div>
-    <footer id="prov"></footer>
   </div>
 </main>
 <div id="tooltip"></div>
 <script>
 "use strict";
 /* Monte Carlo results dashboard. Zero dependencies; reads the committed
-   datasets in results/ (manifest: results/index.json). Chart specs follow
-   the house dataviz rules: thin marks, solid hairline grid, legend for >=2
-   series, tooltips that enhance (a table view twin exists for every chart),
-   one axis per plot, colors validated for CVD on this surface. */
+   datasets in results/ (manifest: results/index.json). Three layers: the
+   FINDING card (an auto-generated verdict plus the summary tiles), one
+   key-evidence card, and an ALL EVIDENCE fold holding the rest. Chart
+   specs follow the house dataviz rules: thin marks, solid hairline grid,
+   legend for >=2 series, tooltips that enhance (a table view twin exists
+   for every chart), one axis per plot, colors validated for CVD on this
+   surface. */
 
 const C = getComputedStyle(document.documentElement);
 const COL = {
@@ -137,11 +187,449 @@ const COL = {
   bright: C.getPropertyValue("--bright").trim(),
   panel: C.getPropertyValue("--panel").trim(),
 };
+
+/* @stats-begin — pure helpers: formatting, the statistics behind every
+   delta, and the finding generator. No DOM access inside these markers;
+   scripts/check-dashboard-stats.mjs extracts the block and runs it in
+   node against the committed datasets. */
 const pct = (v, d = 1) => (v * 100).toFixed(d) + "%";
 const fmtS = (s) => {
   s = Math.round(s); // round before splitting so 119.6 is 2:00, not 1:60
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 };
+const fmtGap = (g) => (g < 120 ? Math.round(g) + " s" : fmtS(g)); // a gap between two clock times
+const num = (n) => Number(n).toLocaleString("en-US");
+const MINUS = "−";
+const kindOf = (d) => d.kind ?? "study";   // pre-kind manifest entries and datasets are studies
+const modeOf = (d) => d.mode ?? "orbit";   // pre-mode datasets are orbit runs
+const labelOf = (d) => d.label ?? "Full study";
+const SIDES = ["BLUFOR", "OPFOR", "STALEMATE"];
+const KEY = { BLUFOR: "B", OPFOR: "O", STALEMATE: "S" };
+const PAIRED_EXPS = [
+  { key: "opforAdoptsDiscipline", name: "OPFOR adopts BLUFOR discipline" },
+  { key: "postureSwap", name: "Full EMCON posture swap" },
+  { key: "launchEqualized", name: "Launch stagger equalized" },
+  { key: "reserveVsRetask", name: "No reserve hunter (retask a strike)" }, // tactical studies only
+];
+
+/* Deltas are differences of DISPLAYED rates, in integer tenths of a point,
+   so every delta on the page is reconstructible from two visible numbers
+   and reproduces the published tables (raw-float subtraction can print
+   17.3 where the study says +17.4). Index a = the arm being described,
+   b = the reference. */
+const rateT = (v) => Math.round(v * 1000);
+const dTenths = (a, b) => rateT(a) - rateT(b);
+const dMag = (dT) => (Math.abs(dT) / 10).toFixed(1);
+const dStr = (dT) => (dT === 0 ? "0.0" : (dT > 0 ? "+" : MINUS) + dMag(dT));
+const dProse = (dT) => (dT === 0 ? "unchanged" : dStr(dT)); // prose form: "stalemates unchanged", never "stalemates 0.0"
+const dPct = (dT) => (dT >= 0 ? "+" : MINUS) + dMag(dT) + "%"; // chart/table twin of the paired card's label
+const moveVerb = (dT, plural) => (dT < 0 ? (plural ? "fall" : "falls") : dT > 0 ? (plural ? "rise" : "rises") : (plural ? "are unchanged" : "is unchanged"));
+
+/* 95% Wilson score interval from counts — the same math as
+   scripts/sweep-utils.mjs wilson(). Clamped: the upper bound at x = n
+   overshoots 1 by an ulp. null when n = 0. */
+const Z95 = 1.959963984540054;
+function wilson(x, n) {
+  if (!n) return null;
+  const p = x / n, d = 1 + (Z95 * Z95) / n;
+  const c = (p + (Z95 * Z95) / (2 * n)) / d;
+  const h = (Z95 * Math.sqrt((p * (1 - p)) / n + (Z95 * Z95) / (4 * n * n))) / d;
+  // The bounds are exactly 0 at x = 0 and exactly 1 at x = n; float rounding lands an ulp off.
+  return { p, lo: x === 0 ? 0 : Math.max(0, c - h), hi: x === n ? 1 : Math.min(1, c + h) };
+}
+/* 95% CI for p1 − p2, two independent proportions: Newcombe (1998) hybrid
+   score interval, method 10. With Wilson bounds (l1,u1) and (l2,u2):
+   lo = Δ − sqrt((p1−l1)² + (u2−p2)²), hi = Δ + sqrt((u1−p1)² + (p2−l2)²).
+   Finite at p = 0 or 1. For same-seed (paired) arms the interval is
+   conservative — it understates the evidence, never overstates it. */
+function newcombe(x1, n1, x2, n2) {
+  const a = wilson(x1, n1), b = wilson(x2, n2);
+  if (!a || !b) return null;
+  const delta = a.p - b.p;
+  return { delta,
+    lo: delta - Math.sqrt((a.p - a.lo) ** 2 + (b.hi - b.p) ** 2),
+    hi: delta + Math.sqrt((a.hi - a.p) ** 2 + (b.p - b.lo) ** 2) };
+}
+/* The three significance words. The 2-point test is on the printed delta
+   so the word can never contradict the number beside it. */
+function sigWord(ci, dT) {
+  if (!ci) return "n/a";
+  if (dT === 0) return "no measurable difference";
+  if (ci.lo > 0 || ci.hi < 0) return "clear";
+  if (Math.abs(dT) >= 20) return "slight";
+  return "no measurable difference";
+}
+const SIG_TIP = "How the word is chosen: the 95% confidence interval for the difference between the two " +
+  "rates (Newcombe's hybrid Wilson method, z=1.96). Excludes zero → clear. Includes zero but the gap is " +
+  "at least 2 points → slight. Otherwise → no measurable difference. The paired experiments rerun the " +
+  "same seeds and an ad-hoc sweep usually reuses seeds from the baseline's range, so per-seed luck partly " +
+  "cancels and this interval is wider than it needs to be — the word understates the evidence rather " +
+  "than overstating it. Per-outcome Wilson CIs are on the tiles below.";
+
+/* Labels are free text typed into the Studies panel: sanitise, truncate at
+   a word boundary, and let the renderers escape. */
+function cleanLabel(label) {
+  const full = String(label ?? "").replace(/[\x00-\x1F\x7F]/g, " ").replace(/\s+/g, " ").trim();
+  if (!full) return { short: "unlabeled sweep", full: "unlabeled sweep" };
+  if (full.length <= 60) return { short: full, full };
+  let c = full.slice(0, 59);
+  const sp = c.lastIndexOf(" ");
+  if (sp >= 40) c = c.slice(0, sp);
+  return { short: c.replace(/[\s.,;:\-–—]+$/, "") + "…", full };
+}
+const words = (s) => s.split(/\s+/).filter((t) => /[A-Za-z0-9]/.test(t)).length; // dashes and arrows are not words
+
+/* Reference for an ad-hoc dataset: the newest study of the same mode in
+   the manifest (which is newest-first). Never the other mode — orbit and
+   tactical are different fights. */
+function refEntryFor(manifest, entry) {
+  if (kindOf(entry) !== "adhoc") return null;
+  return manifest.datasets.find((d) => d !== entry && kindOf(d) === "study" && modeOf(d) === modeOf(entry) &&
+    d.baseline && d.baseline.runs && d.baseline.win_rates) ?? null;
+}
+/* The command that regenerates the dataset. Label is double-quoted (escape
+   \ and "), the overrides JSON single-quoted ('\'' for a literal quote). */
+function regenCommand(data) {
+  const m = data.meta ?? {};
+  const modeArg = modeOf(data) === "tactical" ? " --mode tactical" : "";
+  if (kindOf(data) !== "adhoc") return "node scripts/monte-carlo-study.mjs" + modeArg;
+  const label = cleanLabel(data.label).full.replace(/[\\"]/g, (c) => "\\" + c);
+  const ov = m.overrides ? " --overrides '" + JSON.stringify(m.overrides).replace(/'/g, "'\\''") + "'" : "";
+  return `node scripts/run-sweep.mjs --label "${label}" --start ${m.seed_range?.start ?? 1} --count ${m.seed_range?.count ?? 0}` + ov + modeArg;
+}
+function flattenOverrides(o, prefix = "", out = []) {
+  if (o && typeof o === "object" && !Array.isArray(o)) {
+    for (const k of Object.keys(o)) flattenOverrides(o[k], prefix ? prefix + "." + k : k, out);
+  } else if (prefix) out.push({ path: prefix, value: JSON.stringify(o) });
+  return out;
+}
+function reasonText(agg) {
+  const keys = Object.keys(agg.stalemate_reasons ?? {}).filter((k) => agg.stalemate_reasons[k] > 0);
+  if (keys.length !== 1) return null;
+  return { both_drones_down: "both drones down", packages_expended: "both packages spent" }[keys[0]] ?? null;
+}
+
+/* Everything the finding, the tiles' delta lines, the vs-stock card and
+   COPY FINDINGS read. null when the dataset has no usable baseline. */
+function deriveFacts(data, entry, refEntry) {
+  const b = data.experiments?.baseline;
+  if (!b || !b.outcomes || !b.runs || !b.win_rates) return null;
+  const m = data.meta ?? {};
+  const kind = kindOf(data), mode = modeOf(data);
+  const adhoc = kind === "adhoc", tactical = mode === "tactical";
+  const n = b.runs;
+  const rates = {};
+  for (const s of SIDES) {
+    const ci = b.ci95?.[s] ?? wilson(b.outcomes[s], n);
+    rates[KEY[s]] = { p: b.win_rates[s], lo: ci.lo, hi: ci.hi, count: b.outcomes[s] };
+  }
+  const nDecisive = b.outcomes.BLUFOR + b.outcomes.OPFOR;
+  const decisive = { count: nDecisive, share: nDecisive ? b.outcomes.BLUFOR / nDecisive : null,
+    decidedRate: 1 - b.win_rates.STALEMATE };
+  const f = {
+    file: entry.file, label: cleanLabel(adhoc ? data.label : labelOf(data)), kind, mode, adhoc, tactical,
+    generated: m.generated ?? null, sim_commit: m.sim_commit ?? null, engine_commit: m.engine_commit ?? null,
+    total_runs: m.total_runs ?? null, seed_range: m.seed_range ?? null,
+    overrides: adhoc ? flattenOverrides(m.overrides ?? {}) : [], overridesRaw: m.overrides ?? null,
+    n, rates, decisive, reason: reasonText(b),
+    strikes: tactical && b.strikes_delivered ? { B: b.strikes_delivered.BLUFOR, O: b.strikes_delivered.OPFOR } : null,
+    ref: null, refMissing: adhoc && !refEntry, paired: null, pairedTooSmall: null, dose: null, timing: null,
+    regen: regenCommand(data),
+  };
+  if (adhoc && refEntry) {
+    const rn = refEntry.baseline.runs, rw = refEntry.baseline.win_rates;
+    const rr = {}, deltas = {};
+    for (const s of SIDES) {
+      const rx = Math.round(rw[s] * rn); // the manifest carries 3-dp rates, not counts
+      const w = wilson(rx, rn);
+      rr[KEY[s]] = { p: rw[s], lo: w.lo, hi: w.hi, count: rx };
+      const dT = dTenths(b.win_rates[s], rw[s]);
+      const ci = newcombe(b.outcomes[s], n, rx, rn);
+      deltas[KEY[s]] = { dT, ci, sig: sigWord(ci, dT) };
+    }
+    const rDec = rr.B.count + rr.O.count;
+    const rShare = rDec ? rr.B.count / rDec : null;
+    if (nDecisive && rDec) {
+      const dT = dTenths(decisive.share, rShare);
+      const ci = newcombe(b.outcomes.BLUFOR, nDecisive, rr.B.count, rDec);
+      deltas.decisive = { dT, ci, sig: sigWord(ci, dT) };
+    } else deltas.decisive = null;
+    f.ref = { file: refEntry.file, label: cleanLabel(labelOf(refEntry)).full, n: rn, rates: rr, deltas,
+      decisive: { count: rDec, share: rShare, decidedRate: 1 - rw.STALEMATE } };
+  }
+  const stock = data.experiments.pairedStockArm;
+  if (!adhoc && stock && stock.runs && stock.outcomes && stock.win_rates) {
+    const arms = PAIRED_EXPS.map((e) => ({ e, x: data.experiments[e.key] }))
+      .filter(({ x }) => x?.variant?.win_rates && x.variant.outcomes && x.variant.runs);
+    const minRuns = Math.min(stock.runs, ...arms.map(({ x }) => x.variant.runs));
+    if (arms.length && minRuns < 100) f.pairedTooSmall = minRuns;
+    else if (arms.length) {
+      f.paired = arms.map(({ e, x }) => {
+        const v = x.variant;
+        const row = { key: e.key, name: e.name, n: stock.runs, flips: x.paired?.flips_total ?? null, stock, variant: v };
+        for (const s of SIDES) {
+          const dT = dTenths(v.win_rates[s], stock.win_rates[s]);
+          const ci = newcombe(v.outcomes[s], v.runs, stock.outcomes[s], stock.runs);
+          row[KEY[s]] = { a: stock.win_rates[s], b: v.win_rates[s], dT, ci, sig: sigWord(ci, dT) };
+        }
+        row.maxAbs = Math.max(Math.abs(row.B.dT), Math.abs(row.O.dT), Math.abs(row.S.dT));
+        return row;
+      });
+    }
+  }
+  const e3 = data.experiments.uplinkDutySensitivity;
+  if (e3?.cells?.length) {
+    const cont = e3.cells.filter((c) => c.opfor_video === "continuous" && c.n >= 100 && c.win_rates)
+      .sort((p, q) => p.opfor_uplink_duty - q.opfor_uplink_duty);
+    if (cont.length >= 2) {
+      const first = cont[0], last = cont[cont.length - 1];
+      f.dose = { first: { duty: first.opfor_uplink_duty, B: first.win_rates.BLUFOR },
+        last: { duty: last.opfor_uplink_duty, B: last.win_rates.BLUFOR },
+        rising: last.win_rates.BLUFOR > first.win_rates.BLUFOR };
+    }
+  }
+  const tB = b.time_to_fix_s?.BLUFOR, tO = b.time_to_fix_s?.OPFOR;
+  if (tB && tO && tB.n >= 30 && tO.n >= 30 && Number.isFinite(tB.median) && Number.isFinite(tO.median)) {
+    const fast = tB.median <= tO.median ? "BLUFOR" : "OPFOR";
+    const tf = fast === "BLUFOR" ? tB : tO, ts = fast === "BLUFOR" ? tO : tB;
+    const gap = ts.median - tf.median;
+    if (gap >= 10) f.timing = { fast, slow: fast === "BLUFOR" ? "OPFOR" : "BLUFOR", gap, mFast: tf.median, mSlow: ts.median, nFast: tf.n, nSlow: ts.n };
+  }
+  return f;
+}
+
+/* ---- the verdict: fixed clause order, interpretive tails only on stated
+   conditions, exactly three significance words ---------------------- */
+function rateStr(r, n) {
+  if (r.count === 0) return `0.0% (0 of ${num(n)})`;
+  if (r.count === n) return `100.0% (all ${num(n)})`;
+  return pct(r.p);
+}
+function tagPair(wB, wO) {
+  if (wB === wO && wB === "clear") return "both clear";
+  if (wB === wO && wB === "slight") return "both slight";
+  if (wB === wO) return "no measurable difference either way";
+  return `BLUFOR ${wB}, OPFOR ${wO}`;
+}
+/* "BLUFOR falls 12.9 points to 36.0%" / "OPFOR's 18.6% is within noise of its 18.8% (−0.2, no measurable difference)". */
+function sideMove(side, r, unit, selfTag) {
+  if (r.sig === "no measurable difference")
+    return `${side}'s ${pct(r.b)} is within noise of its ${pct(r.a)} (${dStr(r.dT)}, no measurable difference)`;
+  return `${side} ${moveVerb(r.dT)} ${dMag(r.dT)}${unit ? " points" : ""} to ${pct(r.b)}` + (selfTag ? ` (${r.sig})` : "");
+}
+function studyLead(f) {
+  const swap = f.paired?.find((p) => p.key === "postureSwap");
+  if (swap && swap.B.sig === "clear" && swap.O.sig === "clear" && Math.sign(swap.B.dT) !== Math.sign(swap.O.dT))
+    return "Emissions posture, not the team, decides this fight.";
+  const par = f.paired?.find((p) => p.key === "opforAdoptsDiscipline");
+  if (par && par.B.sig === "clear" && par.B.dT < 0)
+    return "Emissions discipline is the deciding variable in this dataset.";
+  const [lead, other] = f.rates.B.p >= f.rates.O.p ? ["BLUFOR", "OPFOR"] : ["OPFOR", "BLUFOR"];
+  return `${lead} wins ${pct(f.rates[KEY[lead]].p)} to ${pct(f.rates[KEY[other]].p)}; ${pct(f.rates.S.p)} end without a decision.`;
+}
+function studyClauses(f) {
+  const cl = [];
+  const allStale = f.rates.S.count === f.n;
+  const stale = `${rateStr(f.rates.S, f.n)} end in stalemate${f.reason ? ", " + f.reason : ""}`;
+  cl.push({ tag: "baseline", text: allStale
+    ? `Across ${num(f.n)} notional engagements on the stock configuration, no engagement was decided: all ${num(f.n)} runs ended ${f.reason ?? "in stalemate"}.`
+    : `Across ${num(f.n)} notional engagements on the stock configuration, BLUFOR (disciplined) wins ${rateStr(f.rates.B, f.n)}, ` +
+      `OPFOR (continuous) ${rateStr(f.rates.O, f.n)}, and ${stale}; BLUFOR takes ${pct(f.decisive.share)} of the ${num(f.decisive.count)} decided fights.` });
+  if (f.strikes) {
+    const sB = f.strikes.B.mean.toFixed(1), sO = f.strikes.O.mean.toFixed(1);
+    const strikes = sB === sO ? `${sB} strikes each` : `${sB} / ${sO} strikes (BLUFOR / OPFOR)`;
+    cl.push({ tag: "strikes", text: `Both sides still land a mean ${strikes} on the objective, so the supported ground fight gets its fires either way and the duel is decided at the margin.` });
+  }
+  if (f.pairedTooSmall !== null) {
+    cl.push({ tag: "paired", text: `The paired experiments ran only ${num(f.pairedTooSmall)} seeds each — too few to separate here; see the paired card.` });
+  } else if (f.paired) {
+    const byKey = Object.fromEntries(f.paired.map((p) => [p.key, p]));
+    const par = byKey.opforAdoptsDiscipline;
+    if (par) {
+      const st = par.stock.win_rates;
+      const same = par.B.sig === par.O.sig;
+      let s = `On ${num(par.n)} same-seed pairs (stock arm ${pct(st.BLUFOR)} / ${pct(st.OPFOR)} / ${pct(st.STALEMATE)}): give OPFOR the same duty cycles and `;
+      if (same && par.B.sig !== "no measurable difference")
+        s += `${sideMove("BLUFOR", par.B, true, false)} while ${sideMove("OPFOR", par.O, false, false)} (${tagPair(par.B.sig, par.O.sig)})`;
+      else if (same)
+        s += `neither rate moves: BLUFOR ${pct(par.B.b)} vs ${pct(par.B.a)}, OPFOR ${pct(par.O.b)} vs ${pct(par.O.a)} (no measurable difference either way)`;
+      else
+        s += `${sideMove("BLUFOR", par.B, true, true)} while ${sideMove("OPFOR", par.O, false, true)}`;
+      const gapT = Math.abs(dTenths(par.B.b, par.O.b));
+      if (par.B.sig === "clear" && par.B.dT < 0 && gapT < 50) s += ` — the two come within ${dMag(gapT)} points of each other`;
+      else if (par.B.sig === "clear" && par.B.dT < 0) s += ` — discipline is worth about ${dMag(par.B.dT)} points of win rate`;
+      else if ([par.B, par.O, par.S].every((r) => r.sig === "no measurable difference")) s += ` — nothing measurable changes`;
+      if (par.S.sig === "clear" && Math.abs(par.S.dT) >= 30) s += `, and stalemates ${moveVerb(par.S.dT, true)} ${dMag(par.S.dT)}`;
+      cl.push({ tag: "parity", text: s + "." });
+    }
+    const swap = byKey.postureSwap;
+    if (swap) {
+      const stockLead = swap.B.a >= swap.O.a ? "B" : "O";
+      const varLead = swap.B.b >= swap.O.b ? "B" : "O";
+      const follows = swap.B.sig === "clear" && swap.O.sig === "clear" && Math.sign(swap.B.dT) !== Math.sign(swap.O.dT) && stockLead !== varLead;
+      const w = varLead === "B" ? ["BLUFOR", swap.B, "OPFOR", swap.O] : ["OPFOR", swap.O, "BLUFOR", swap.B];
+      const tail = follows
+        ? `the advantage follows the posture, not the team: ${w[0]} wins ${pct(w[1].b)} to ${w[2]}'s ${pct(w[3].b)} (${dStr(w[1].dT)} / ${dStr(w[3].dT)}, ${tagPair(swap.B.sig, swap.O.sig)})`
+        : `the rates move BLUFOR ${dStr(swap.B.dT)}, OPFOR ${dStr(swap.O.dT)} (${tagPair(swap.B.sig, swap.O.sig)})`;
+      cl.push({ tag: "swap", text: `Swap the two postures outright and ${tail}.` });
+    }
+    const stag = byKey.launchEqualized;
+    if (stag) {
+      const none = [stag.B, stag.O, stag.S].every((r) => r.sig === "no measurable difference");
+      const text = none
+        ? `Equalizing the two sides' launch times is worth nothing — no rate moves more than ${dMag(stag.maxAbs)} points (no measurable difference either way).`
+        : `Equalizing the two sides' launch times moves BLUFOR ${dProse(stag.B.dT)} (${stag.B.sig}) and OPFOR ${dProse(stag.O.dT)} (${stag.O.sig}).`;
+      cl.push({ tag: "stagger", text });
+    }
+    const res = byKey.reserveVsRetask;
+    if (res) {
+      const ws = [res.B.sig, res.O.sig, res.S.sig];
+      const tagAll = ws.every((x) => x === "clear") ? "all clear"
+        : ws.every((x) => x === "no measurable difference") ? "no measurable difference anywhere"
+        : `BLUFOR ${res.B.sig}, OPFOR ${res.O.sig}, stalemates ${res.S.sig}`;
+      const largest = f.paired.every((p) => p === res || p.maxAbs < res.maxAbs);
+      const verb = res.B.dT < 0 && res.O.dT < 0 ? "costs both sides" : "moves the rates";
+      cl.push({ tag: "reserve", text: `Flying without a dedicated hunter-killer — retasking a strike sortie onto the fix instead — ${verb}: ` +
+        `BLUFOR ${dStr(res.B.dT)}, OPFOR ${dStr(res.O.dT)}, stalemates ${dStr(res.S.dT)} (${tagAll})` +
+        (largest ? " — the largest single effect in this battery" : "") + "." });
+    }
+  }
+  if (f.dose && f.dose.rising && !allStale)
+    cl.push({ tag: "dose", text: `It is a dial, not a switch: the more OPFOR transmits, the more BLUFOR wins: ${pct(f.dose.first.B)} → ${pct(f.dose.last.B)} ` +
+      `across the duty sweep (${pct(f.dose.first.duty, 0)} → ${pct(f.dose.last.duty, 0)} uplink duty, video continuous).` });
+  if (f.timing) {
+    const t = f.timing;
+    cl.push({ tag: "timing", text: `${t.fast} also locates the enemy station about ${fmtGap(t.gap)} sooner at the median (${fmtS(t.mFast)} vs ${fmtS(t.mSlow)}), ` +
+      `and reaches a fix at all in ${num(t.nFast)} of ${num(f.n)} runs to ${t.slow}'s ${num(t.nSlow)}.` });
+  }
+  return cl;
+}
+function overrideClauses(f) {
+  const cl = [];
+  const ov = f.overrides;
+  if (ov.length === 0) cl.push({ tag: "overrides", text: `No parameters were overridden — this is the stock configuration over ${num(f.n)} seeds.` +
+    (f.ref && ["B", "O", "S"].every((k) => f.ref.deltas[k].sig === "no measurable difference") ? " It matches the baseline within sampling noise, as it should." : "") });
+  else if (ov.length === 1) cl.push({ tag: "overrides", text: `One parameter was changed: \`${ov[0].path}\` = ${ov[0].value}.` });
+  else if (ov.length <= 4) cl.push({ tag: "overrides", text: `${ov.length} parameters were changed: ` + ov.map((o) => `\`${o.path}\` = ${o.value}`).join(", ") + "." });
+  else cl.push({ tag: "overrides", text: `${ov.length} parameters were changed, including \`${ov[0].path}\` = ${ov[0].value}, \`${ov[1].path}\` = ${ov[1].value} — the full set is in the provenance footer below.` });
+  if (ov.length >= 2) cl.push({ tag: "overrides", text: "These differences are the combined effect of every change, not of any one of them." });
+  return cl;
+}
+function adhocClauses(f) {
+  const cl = [];
+  const allStale = f.rates.S.count === f.n;
+  const label = f.label.short;
+  if (f.ref) {
+    const r = f.ref, d = r.deltas;
+    cl.push({ tag: "baseline", text: `Versus the stock baseline (${pct(r.rates.B.p)} / ${pct(r.rates.O.p)} / ${pct(r.rates.S.p)}), '${label}' moves ` +
+      `BLUFOR ${dProse(d.B.dT)}${d.B.dT === 0 ? "" : " points"} (${d.B.sig}), OPFOR ${dProse(d.O.dT)} (${d.O.sig}), stalemates ${dProse(d.S.dT)} (${d.S.sig}); ` +
+      `n=${num(f.n)} here vs n=${num(r.n)} in the baseline.` });
+    if (allStale) cl.push({ tag: "decisive", text: `No engagement was decided: all ${num(f.n)} runs ended ${f.reason ?? "in stalemate"}.` });
+    else {
+      const dec = pct(f.decisive.decidedRate), rdec = pct(r.decisive.decidedRate);
+      const split = (s) => (s === null ? "no decided fights" : `${Math.round(s * 100)}/${100 - Math.round(s * 100)}`);
+      const decT = dTenths(f.decisive.decidedRate, r.decisive.decidedRate);
+      const opener = decT < 0 ? `Only ${dec} of fights are decided against ${rdec} there`
+        : decT > 0 ? `Now ${dec} of fights are decided against ${rdec} there`
+        : `As in the baseline, ${dec} of fights are decided`;
+      cl.push({ tag: "decisive", text: `${opener}, and the decided ones split ${split(f.decisive.share)} here against ${split(r.decisive.share)} there.` });
+    }
+    cl.push(...overrideClauses(f));
+    if (f.timing && !allStale) {
+      const t = f.timing;
+      cl.push({ tag: "timing", text: `${t.fast} still locates the enemy station about ${fmtGap(t.gap)} sooner at the median (${fmtS(t.mFast)} vs ${fmtS(t.mSlow)}), ` +
+        `on the ${num(t.nFast)} of ${num(f.n)} runs where it reached a fix at all.` });
+    }
+  } else {
+    const stale = `${rateStr(f.rates.S, f.n)} end in stalemate${f.reason ? ", " + f.reason : ""}`;
+    cl.push({ tag: "baseline", text: `There is no stock ${f.mode} study in this results folder to compare against, so these numbers stand alone: ` +
+      (allStale ? `no engagement was decided — all ${num(f.n)} runs ended ${f.reason ?? "in stalemate"}.`
+        : `BLUFOR wins ${rateStr(f.rates.B, f.n)}, OPFOR ${rateStr(f.rates.O, f.n)}, and ${stale}; ${pct(f.decisive.decidedRate)} of fights are decided and BLUFOR takes ${pct(f.decisive.share)} of those.`) });
+    cl.push(...overrideClauses(f));
+    cl.push({ tag: "howto", text: `Run \`node scripts/monte-carlo-study.mjs${f.tactical ? " --mode tactical" : ""}\` to produce a baseline to compare against.` });
+  }
+  return cl;
+}
+function adhocLead(f) {
+  const label = f.label.short;
+  const rs = `${rateStr(f.rates.B, f.n)} / ${rateStr(f.rates.O, f.n)} / ${rateStr(f.rates.S, f.n)}`;
+  if (!f.ref) return `'${label}': ${rs} over ${num(f.n)} engagements.`;
+  const d = f.ref.deltas;
+  const big = ["B", "O", "S"].reduce((m, k) => (Math.abs(d[k].dT) > Math.abs(d[m].dT) ? k : m), "B");
+  const word = { clear: "clearly different from", slight: "slightly different from" }[d[big].sig] ?? "no measurable difference from";
+  return `'${label}': ${rs} — ${word} the stock baseline.`;
+}
+const CAVEAT = "All data is notional — a statement about this model, not about any real system.";
+const WORD_CAP = 260;
+function sentencesFor(f) {
+  let clauses = f.adhoc ? adhocClauses(f) : studyClauses(f);
+  if (f.n < 100) {
+    clauses = clauses.filter((c) => c.tag !== "dose" && c.tag !== "timing");
+    clauses.unshift({ tag: "small", text: `Small sample — n=${num(f.n)}; treat everything below as indicative only.` });
+  }
+  for (const drop of ["timing", "dose", "stagger"]) {
+    if (clauses.reduce((s, c) => s + words(c.text), 0) <= WORD_CAP) break;
+    clauses = clauses.filter((c) => c.tag !== drop);
+  }
+  return { lead: f.adhoc ? adhocLead(f) : studyLead(f), clauses: clauses.map((c) => c.text), caveat: CAVEAT };
+}
+function verdict(data, manifest, entry) {
+  const facts = deriveFacts(data, entry, refEntryFor(manifest, entry));
+  if (!facts) return null;
+  return { facts, text: sentencesFor(facts) };
+}
+
+/* COPY FINDINGS: GitHub-flavoured Markdown, one unwrapped line per clause. */
+const mdEsc = (s) => String(s).replace(/`/g, "").replace(/\|/g, "\\|").replace(/</g, "\\<"); // a label must never become HTML on GitHub
+const mdLine = (s) => String(s).replace(/\|/g, "\\|").replace(/</g, "\\<");
+const short7 = (c) => (c ? String(c).slice(0, 7) : "unknown");
+const ciStr = (r) => `${pct(r.lo)} – ${pct(r.hi)}`;
+const dCell = (d) => (d ? `${dStr(d.dT)} (${d.sig})` : "—");
+function findingsMarkdown(f, text) {
+  const L = [];
+  const staleLbl = f.tactical ? "Stalemate (packages spent)" : "Stalemate (both drones down)";
+  L.push(`## Finding — ${f.adhoc ? "AD-HOC · " : ""}${mdEsc(f.label.full)} · ${f.mode} · ${f.adhoc ? "" : "baseline "}n=${num(f.n)}`);
+  L.push("");
+  L.push(`**${mdEsc(text.lead)}**`);
+  for (const c of text.clauses) L.push(`- ${mdLine(c)}`);
+  L.push("");
+  const hasRef = !!f.ref;
+  L.push(`| Outcome | Rate | 95% CI | ${hasRef ? "Δ vs baseline" : "n"} |`);
+  L.push("|---|---|---|---|");
+  const row = (lbl, k) => `| ${lbl} | ${pct(f.rates[k].p)} | ${ciStr(f.rates[k])} | ${hasRef ? dCell(f.ref.deltas[k]) : num(f.rates[k].count)} |`;
+  L.push(row(f.adhoc ? "BLUFOR victory" : "BLUFOR victory (disciplined)", "B"));
+  L.push(row(f.adhoc ? "OPFOR victory" : "OPFOR victory (continuous)", "O"));
+  L.push(row(staleLbl, "S"));
+  if (f.decisive.count) L.push(`| Decisive fights won by BLUFOR | ${pct(f.decisive.share)} | — | ${hasRef ? dCell(f.ref.deltas.decisive) : num(f.decisive.count)} |`);
+  if (f.strikes) L.push(`| Strikes delivered (mean BLUFOR / OPFOR) | ${f.strikes.B.mean.toFixed(1)} / ${f.strikes.O.mean.toFixed(1)} | — | ${num(f.n)} |`);
+  if (f.paired) {
+    L.push("");
+    L.push(`| Experiment (${num(f.paired[0].n)} same-seed pairs) | BLUFOR | OPFOR | Stalemate | Flips |`);
+    L.push("|---|---|---|---|---|");
+    const st = f.paired[0].stock.win_rates;
+    L.push(`| Stock arm | ${pct(st.BLUFOR)} | ${pct(st.OPFOR)} | ${pct(st.STALEMATE)} | — |`);
+    const cell = (r) => `${pct(r.b)} (${dStr(r.dT)}, ${r.sig === "no measurable difference" ? "none" : r.sig})`;
+    for (const p of f.paired) L.push(`| ${p.name} | ${cell(p.B)} | ${cell(p.O)} | ${cell(p.S)} | ${p.flips === null ? "—" : num(p.flips)} |`);
+  }
+  L.push("");
+  const method = "95% CIs are Wilson score intervals; a delta's word comes from the 95% CI for the difference " +
+    "(Newcombe hybrid-Wilson, z=1.96): excludes 0 → clear, includes 0 but ≥ 2 points → slight, otherwise no measurable difference" +
+    (f.paired ? " (\"none\" in the table). Paired arms share seeds, so that interval is conservative." : ".") +
+    " All data is notional and unclassified.";
+  if (hasRef) L.push(`Deltas are percentage points against \`${f.ref.file}\` (${mdEsc(f.ref.label)}, ${f.mode}, n=${num(f.ref.n)}). ` + method);
+  else if (f.refMissing) L.push("No stock baseline of this mode is registered in the results folder, so no deltas are reported. " + method);
+  else L.push(method);
+  L.push("");
+  let src = `Source: \`results/${f.file}\` · generated ${f.generated ? f.generated.slice(0, 10) : "?"} · ${num(f.total_runs ?? f.n)} engagements · ` +
+    `sim \`${short7(f.sim_commit)}\` · engine \`${short7(f.engine_commit)}\``;
+  if (f.adhoc && f.overridesRaw) src += ` · overrides \`${JSON.stringify(f.overridesRaw).replace(/`/g, "")}\``;
+  if (f.adhoc && f.seed_range) src += ` · seeds ${f.seed_range.start}–${f.seed_range.start + f.seed_range.count - 1}`;
+  L.push(src);
+  L.push(`Regenerate: \`${f.regen.replace(/`/g, "")}\``);
+  return L.join("\n") + "\n";
+}
+/* @stats-end */
+
 const SVGNS = "http://www.w3.org/2000/svg";
 function el(name, attrs, parent) {
   const n = document.createElementNS(SVGNS, name);
@@ -156,6 +644,7 @@ function div(cls, parent, html) {
   if (parent) parent.appendChild(d);
   return d;
 }
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 /* ------------------------- tooltip ---------------------------------- */
 const tip = document.getElementById("tooltip");
@@ -175,8 +664,8 @@ function hoverable(node, html) {
 }
 
 /* ------------------------- chart scaffolding ------------------------ */
-function chartCard(title, subtitle) {
-  const card = div("card", document.getElementById("charts"));
+function chartCard(title, subtitle, mount) {
+  const card = div("card", mount);
   const h = document.createElement("h2"); h.textContent = title; card.appendChild(h);
   if (subtitle) div("sub", card, subtitle);
   return card;
@@ -226,11 +715,76 @@ function column(svg, x, w, yTop, yBase, color) {
   const d = `M${x},${yBase} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + w - r},${yTop} Q${x + w},${yTop} ${x + w},${yTop + r} L${x + w},${yBase} Z`;
   return el("path", { d, fill: color }, svg);
 }
+/* Dumbbell rows: [{group, label, color, a, b, dT, tip}] — a = hollow
+   (reference), b = filled. opts {labelW, xmax, ticks, xlabel}. Drawn
+   exactly as the paired card always was; the vs-stock card reuses it. */
+function dumbbell(card, rows, opts) {
+  const W = 1100, rowH = 34, M = { l: opts.labelW, r: 90, t: 14, b: 38 };
+  const groups = new Set(rows.map((r) => r.group).filter(Boolean)).size;
+  const H = M.t + rows.length * rowH + 10 + M.b + groups * 8;
+  const plot = div("plot", card);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, plot);
+  const X = (v) => M.l + (v / opts.xmax) * (W - M.l - M.r);
+  for (const t of opts.ticks)
+    el("line", { x1: X(t), y1: M.t, x2: X(t), y2: H - M.b, stroke: COL.grid, "stroke-width": 1 }, svg);
+  let y = M.t + 16;
+  let lastGroup = null;
+  for (const r of rows) {
+    if (r.group && lastGroup !== r.group) {
+      if (lastGroup !== null) y += 8;
+      el("text", { x: 8, y: y + 4, "font-size": 11, fill: COL.text }, svg).textContent = r.group;
+      lastGroup = r.group;
+    }
+    el("text", { x: M.l - 12, y: y + 4, "text-anchor": "end", "font-size": 10, fill: COL.dim }, svg)
+      .textContent = r.label;
+    el("line", { x1: X(r.a), y1: y, x2: X(r.b), y2: y, stroke: r.color, "stroke-width": 2, opacity: .7 }, svg);
+    el("circle", { cx: X(r.a), cy: y, r: 4.5, fill: COL.panel, stroke: r.color, "stroke-width": 2 }, svg);
+    el("circle", { cx: X(r.b), cy: y, r: 4.5, fill: r.color, stroke: COL.panel, "stroke-width": 2 }, svg);
+    el("text", { x: X(Math.max(r.a, r.b)) + 12, y: y + 4, "font-size": 10,
+      fill: Math.abs(r.dT) < 5 ? COL.dim : COL.text }, svg)
+      .textContent = dPct(r.dT);
+    const hit = el("rect", { x: M.l, y: y - rowH / 2, width: W - M.l - M.r, height: rowH, fill: "transparent" }, svg);
+    hoverable(hit, r.tip);
+    y += rowH;
+  }
+  axisBottom(svg, M.l, W - M.r, H - M.b + 4, opts.ticks.map((v) => ({ v, px: X(v) })), (v) => pct(v, 0));
+  el("text", { x: (M.l + W - M.r) / 2, y: H - 8, "text-anchor": "middle", "font-size": 10, fill: COL.dim }, svg)
+    .textContent = opts.xlabel;
+  return svg;
+}
 
 /* ------------------------- views ------------------------------------ */
-const modeOf = (d) => d.mode ?? "orbit"; // pre-mode datasets are orbit runs
+/* Clause text → nodes: `code` spans become <code>, the significance words
+   get the explanatory tooltip. Everything is inserted as text. */
+function richText(node, s) {
+  const SIG = /(\b(?:both |all )?(?:clear|slight)\b(?=[,)])|no measurable difference)/g;
+  s.split("`").forEach((part, i) => {
+    if (i % 2) { const c = document.createElement("code"); c.textContent = part; node.appendChild(c); return; }
+    let last = 0, m;
+    while ((m = SIG.exec(part))) {
+      node.appendChild(document.createTextNode(part.slice(last, m.index)));
+      const sp = document.createElement("span"); sp.className = "sig"; sp.textContent = m[0];
+      hoverable(sp, esc(SIG_TIP));
+      node.appendChild(sp);
+      last = m.index + m[0].length;
+    }
+    node.appendChild(document.createTextNode(part.slice(last)));
+  });
+}
+function renderFinding(facts, text) {
+  const host = document.getElementById("verdict");
+  host.innerHTML = "";
+  const lead = document.createElement("p"); lead.className = "lead";
+  const b = document.createElement("b"); b.textContent = text.lead; lead.appendChild(b);
+  host.appendChild(lead);
+  const ul = document.createElement("ul"); ul.className = "clauses";
+  for (const c of text.clauses) { const li = document.createElement("li"); richText(li, c); ul.appendChild(li); }
+  host.appendChild(ul);
+  const note = document.createElement("p"); note.className = "note"; note.textContent = text.caveat;
+  host.appendChild(note);
+}
 
-function renderTiles(data) {
+function renderTiles(data, facts) {
   const b = data.experiments.baseline;
   const wrap = document.getElementById("tiles");
   wrap.innerHTML = "";
@@ -255,21 +809,26 @@ function renderTiles(data) {
       v: `${b.strikes_delivered.BLUFOR.mean.toFixed(1)} / ${b.strikes_delivered.OPFOR.mean.toFixed(1)}`,
       sub: `mean per engagement, BLUFOR / OPFOR (medians ${b.strikes_delivered.BLUFOR.median} / ${b.strikes_delivered.OPFOR.median})` });
   }
+  if (facts?.ref) {
+    const dk = ["B", "O", "S", "decisive"]; // tile index → delta; the strikes tile has none (no strike stats in the manifest)
+    tiles.forEach((t, i) => { const d = facts.ref.deltas[dk[i]]; if (d) t.delta = d; });
+  }
   for (const t of tiles) {
     const tile = div("tile", wrap);
     div("lbl", tile, (t.col ? `<span class="swatch" style="background:${t.col}"></span>` : "") + t.lbl);
     div("val", tile, t.v);
     div("sub", tile, t.sub);
+    if (t.delta) div("delta", tile, `Δ vs stock ${dStr(t.delta.dT)} pts <span class="word">${t.delta.sig}</span>`);
   }
 }
 
-function renderDose(data) {
+function renderDose(data, mount) {
   const e3 = data.experiments.uplinkDutySensitivity;
   if (!e3) return; // ad-hoc datasets carry a single sweep, not the E3 grid
   const card = chartCard(
     "Dose response — OPFOR uplink duty cycle vs win rate",
     "The more OPFOR transmits, the more its enemy wins. Uplink on-time swept 2–12 s of a fixed " +
-    e3.period_s + " s period, " + e3.seeds_per_cell + " seeds per cell; error bars are 95% CIs.");
+    e3.period_s + " s period, " + e3.seeds_per_cell + " seeds per cell; error bars are 95% CIs.", mount);
   const series = [];
   for (const video of ["continuous", "burst"]) {
     const cells = e3.cells.filter((c) => c.opfor_video === video);
@@ -317,73 +876,67 @@ function renderDose(data) {
       fmtS(c.opfor_mean_ttf_by_blufor_s)]));
 }
 
-function renderPaired(data) {
+function renderPaired(data, mount) {
   const stock = data.experiments.pairedStockArm;
   if (!stock) return; // ad-hoc datasets carry a single sweep, not the E2 pairs
-  const exps = [
-    { key: "opforAdoptsDiscipline", name: "OPFOR adopts BLUFOR discipline" },
-    { key: "postureSwap", name: "Full EMCON posture swap" },
-    { key: "launchEqualized", name: "Launch stagger equalized" },
-    { key: "reserveVsRetask", name: "No reserve hunter (retask a strike)" }, // tactical studies only
-  ].filter((e) => data.experiments[e.key]);
+  const exps = PAIRED_EXPS.filter((e) => data.experiments[e.key]);
   const card = chartCard(
     "Paired comparisons — same seeds, one change",
     "Each experiment reruns the identical " + stock.runs.toLocaleString() +
-    " seeds with one config change, so per-seed luck cancels. Hollow dot = stock, filled dot = variant.");
+    " seeds with one config change, so per-seed luck cancels. Hollow dot = stock, filled dot = variant.", mount);
   const rows = [];
   for (const e of exps) {
     const v = data.experiments[e.key].variant;
     const p = data.experiments[e.key].paired;
-    rows.push({ exp: e.name, team: "B", color: COL.B, a: stock.win_rates.BLUFOR, b: v.win_rates.BLUFOR, paired: p });
-    rows.push({ exp: e.name, team: "O", color: COL.O, a: stock.win_rates.OPFOR, b: v.win_rates.OPFOR, paired: p });
-  }
-  const W = 1100, rowH = 34, M = { l: 330, r: 90, t: 14, b: 38 };
-  const H = M.t + rows.length * rowH + 10 + M.b + exps.length * 8;
-  const plot = div("plot", card);
-  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, plot);
-  const xmax = 0.45;
-  const X = (v) => M.l + (v / xmax) * (W - M.l - M.r);
-  const ticks = [0, .1, .2, .3, .4];
-  for (const t of ticks)
-    el("line", { x1: X(t), y1: M.t, x2: X(t), y2: H - M.b, stroke: COL.grid, "stroke-width": 1 }, svg);
-  let y = M.t + 16;
-  let lastExp = null;
-  for (const r of rows) {
-    if (lastExp !== r.exp) {
-      if (lastExp !== null) y += 8;
-      el("text", { x: 8, y: y + 4, "font-size": 11, fill: COL.text }, svg).textContent = r.exp;
-      lastExp = r.exp;
+    for (const [team, side, color] of [["B", "BLUFOR", COL.B], ["O", "OPFOR", COL.O]]) {
+      const a = stock.win_rates[side], b = v.win_rates[side], dT = dTenths(b, a);
+      rows.push({ group: e.name, label: side, color, a, b, dT, flips: p.flips_total,
+        tip: `<b>${e.name}</b> — ${side}<br>stock ${pct(a)} → variant ${pct(b)} (${dPct(dT)})` +
+          `<br>outcome flips: ${p.flips_total} of ${stock.runs.toLocaleString()} seeds` });
     }
-    el("text", { x: M.l - 12, y: y + 4, "text-anchor": "end", "font-size": 10, fill: COL.dim }, svg)
-      .textContent = r.team === "B" ? "BLUFOR" : "OPFOR";
-    el("line", { x1: X(r.a), y1: y, x2: X(r.b), y2: y, stroke: r.color, "stroke-width": 2, opacity: .7 }, svg);
-    el("circle", { cx: X(r.a), cy: y, r: 4.5, fill: COL.panel, stroke: r.color, "stroke-width": 2 }, svg);
-    el("circle", { cx: X(r.b), cy: y, r: 4.5, fill: r.color, stroke: COL.panel, "stroke-width": 2 }, svg);
-    const delta = r.b - r.a;
-    el("text", { x: X(Math.max(r.a, r.b)) + 12, y: y + 4, "font-size": 10,
-      fill: Math.abs(delta) < 0.005 ? COL.dim : COL.text }, svg)
-      .textContent = (delta >= 0 ? "+" : "−") + pct(Math.abs(delta));
-    const hit = el("rect", { x: M.l, y: y - rowH / 2, width: W - M.l - M.r, height: rowH, fill: "transparent" }, svg);
-    hoverable(hit,
-      `<b>${r.exp}</b> — ${r.team === "B" ? "BLUFOR" : "OPFOR"}` +
-      `<br>stock ${pct(r.a)} → variant ${pct(r.b)} (${delta >= 0 ? "+" : "−"}${pct(Math.abs(delta))})` +
-      `<br>outcome flips: ${r.paired.flips_total} of ${stock.runs.toLocaleString()} seeds`);
-    y += rowH;
   }
-  axisBottom(svg, M.l, W - M.r, H - M.b + 4, ticks.map((v) => ({ v, px: X(v) })), (v) => pct(v, 0));
-  el("text", { x: (M.l + W - M.r) / 2, y: H - 8, "text-anchor": "middle", "font-size": 10, fill: COL.dim }, svg)
-    .textContent = "win rate";
+  dumbbell(card, rows, { labelW: 330, xmax: 0.45, ticks: [0, .1, .2, .3, .4], xlabel: "win rate" });
   legend(card, [
     { label: "BLUFOR", color: COL.B, mark: "dot" },
     { label: "OPFOR", color: COL.O, mark: "dot" },
     { label: "stock (hollow)", color: COL.dim, mark: "dot", fill: false },
   ]);
   tableView(card, ["Experiment", "Team", "Stock", "Variant", "Δ (points)", "Flips"],
-    rows.map((r) => [r.exp, r.team === "B" ? "BLUFOR" : "OPFOR", pct(r.a), pct(r.b),
-      ((r.b - r.a) >= 0 ? "+" : "−") + pct(Math.abs(r.b - r.a)), r.paired.flips_total]));
+    rows.map((r) => [r.group, r.label, pct(r.a), pct(r.b), dPct(r.dT), r.flips]));
 }
 
-function renderHistograms(data) {
+/* Ad-hoc key evidence: this sweep against the stock study of the same mode. */
+function renderVsBaseline(f, mount) {
+  const card = chartCard("Vs stock baseline — this sweep against the stock study",
+    f.ref
+      ? `Hollow dot = stock ${esc(f.ref.label)} (${esc(f.ref.file)}, n=${num(f.ref.n)}); filled dot = this sweep (n=${num(f.n)}). ` +
+        "Independent samples — each Δ is read against a 95% Newcombe hybrid-score interval."
+      : "No stock baseline in this manifest — run the study for this mode to enable the comparison.", mount);
+  if (!f.ref) return;
+  const spec = [["B", "BLUFOR wins", COL.B], ["O", "OPFOR wins", COL.O], ["S", "Stalemates", COL.S]];
+  const rows = spec.map(([k, name, color]) => {
+    const t = f.rates[k], r = f.ref.rates[k], d = f.ref.deltas[k];
+    return { group: null, label: name.toUpperCase(), color, a: r.p, b: t.p, dT: d.dT, sig: d.sig, ci: d.ci,
+      tip: `<b>${name}</b><br>stock ${pct(r.p)} [${pct(r.lo)}, ${pct(r.hi)}] n=${num(f.ref.n)}` +
+        `<br>this sweep ${pct(t.p)} [${pct(t.lo)}, ${pct(t.hi)}] n=${num(f.n)}` +
+        `<br>Δ <b>${dStr(d.dT)} pts</b> [${dStr(rateT(d.ci.lo))}, ${dStr(rateT(d.ci.hi))}] · ${d.sig}` };
+  });
+  const top = Math.max(...rows.flatMap((r) => [r.a, r.b]));
+  const xmax = Math.max(0.45, Math.min(1, Math.ceil((top + 0.05) * 10) / 10));
+  const ticks = [];
+  for (let v = 0; v < xmax - 1e-9; v += 0.1) ticks.push(Math.round(v * 10) / 10);
+  dumbbell(card, rows, { labelW: 150, xmax, ticks, xlabel: "outcome rate" });
+  legend(card, [
+    { label: "BLUFOR", color: COL.B, mark: "dot" },
+    { label: "OPFOR", color: COL.O, mark: "dot" },
+    { label: "STALEMATE", color: COL.S, mark: "dot" },
+    { label: "stock (hollow)", color: COL.dim, mark: "dot", fill: false },
+  ]);
+  tableView(card, ["Outcome", "Stock", "This sweep", "Δ (points)", "95% CI of Δ", "Reads as"],
+    rows.map((r) => [r.label, pct(r.a), pct(r.b), dStr(r.dT), `${dStr(rateT(r.ci.lo))} … ${dStr(rateT(r.ci.hi))}`, r.sig]));
+}
+
+function renderHistograms(data, mount) {
   const b = data.experiments.baseline;
   const specs = [
     { h: b.histograms.time_to_fix_s.BLUFOR, color: COL.B, name: "BLUFOR time-to-fix",
@@ -396,7 +949,7 @@ function renderHistograms(data) {
   const card = chartCard(
     "Baseline timelines — distribution shapes",
     "Small multiples on identical axes, " + specs[0].h.bin_width_s + " s bins. The disciplined side's fix " +
-    "distribution leads the continuous emitter's, and reaches a fix far more often.");
+    "distribution leads the continuous emitter's, and reaches a fix far more often.", mount);
   const plot = div("plot", card);
   plot.style.display = "grid";
   plot.style.gridTemplateColumns = "repeat(auto-fit,minmax(320px,1fr))";
@@ -439,7 +992,7 @@ function renderSeeds(data) {
       detail: `${entry.winner} victory at T+${fmtS(entry.t_s)}` });
   };
   const adhoc = data.kind === "adhoc";
-  const b = data.experiments.baseline.notable_seeds;
+  const b = data.experiments.baseline.notable_seeds ?? {};
   add(adhoc ? "Fastest kill in this sweep" : "Fastest kill in the baseline", b.fastest_kill);
   add(adhoc ? "Slowest kill in this sweep" : "Slowest kill in the baseline", b.slowest_kill);
   add("A representative stalemate", b.example_stalemate,
@@ -463,38 +1016,61 @@ function renderProvenance(data, entry) {
   const m = data.meta ?? {};
   const short = (c) => (c ? c.slice(0, 7) : "unknown");
   const kindTag = data.kind === "adhoc"
-    ? `AD-HOC sweep "${data.label ?? "unlabeled"}"` +
+    ? `AD-HOC sweep "${esc(data.label ?? "unlabeled")}"` +
       (m.seed_range ? ` · seeds ${m.seed_range.start}–${m.seed_range.start + m.seed_range.count - 1}` : "") +
-      (m.overrides ? ` · overrides <code>${JSON.stringify(m.overrides)}</code>` : " · stock config") + "<br>"
+      (m.overrides ? ` · overrides <code>${esc(JSON.stringify(m.overrides))}</code>` : " · stock config") + "<br>"
     : "";
-  const modeArg = modeOf(data) === "tactical" ? " --mode tactical" : "";
   const modeTag = modeOf(data) === "tactical" ? "TACTICAL mode (sortie stream) · " : "";
   document.getElementById("prov").innerHTML = kindTag + modeTag +
-    `Dataset: <code>${entry.file}</code> · generated ${m.generated ? m.generated.slice(0, 10) : "?"} · ` +
+    `Dataset: <code>${esc(entry.file)}</code> · generated ${m.generated ? esc(m.generated.slice(0, 10)) : "?"} · ` +
     `${(m.total_runs ?? 0).toLocaleString()} engagements · ` +
-    `sim <code>${short(m.sim_commit)}</code> · engine <code>${short(m.engine_commit)}</code><br>` +
-    `Deterministic and reproducible: <code>${data.kind === "adhoc"
-      ? `node scripts/run-sweep.mjs --label "${data.label ?? ""}" --start ${m.seed_range?.start ?? 1} --count ${m.seed_range?.count ?? 0}` +
-        (m.overrides ? ` --overrides '${JSON.stringify(m.overrides)}'` : "") + modeArg
-      : "node scripts/monte-carlo-study.mjs" + modeArg}</code> regenerates every number ` +
+    `sim <code>${esc(short(m.sim_commit))}</code> · engine <code>${esc(short(m.engine_commit))}</code><br>` +
+    `Deterministic and reproducible: <code>${esc(regenCommand(data))}</code> regenerates every number ` +
     `(see <a style="color:var(--blufor-hi)" href="https://github.com/wasomma/fpv-sim/blob/main/MONTE_CARLO.md">MONTE_CARLO.md</a>). ` +
     `All data is notional and unclassified.`;
 }
 
 /* ------------------------- load ------------------------------------- */
-async function loadDataset(entry) {
-  const res = await fetch("results/" + entry.file);
-  const data = await res.json();
-  document.getElementById("charts").innerHTML = "";
-  renderTiles(data);
-  renderDose(data);
-  renderPaired(data);
-  renderHistograms(data);
+let current = null; // { facts, text } of the dataset on screen — what COPY FINDINGS renders
+async function loadDataset(entry, manifest) {
+  const st = document.getElementById("status"), content = document.getElementById("content");
+  let data;
+  try {
+    const res = await fetch("results/" + entry.file);
+    if (!res.ok) throw new Error(res.status + " " + res.statusText);
+    data = await res.json();
+  } catch (err) {
+    content.hidden = true; st.hidden = false;
+    st.innerHTML = `Could not load <code>results/${esc(entry.file)}</code> (${esc(err.message)}).`;
+    return;
+  }
+  if (!data.experiments?.baseline) {
+    content.hidden = true; st.hidden = false;
+    st.innerHTML = `<code>${esc(entry.file)}</code> has no baseline sweep — nothing to show.`;
+    return;
+  }
+  const key = document.getElementById("key"), more = document.getElementById("more");
+  key.innerHTML = ""; more.innerHTML = "";
+  // The finding fails soft: a dataset the generator cannot read still gets its tiles and cards.
+  let v = null;
+  try { v = verdict(data, manifest, entry); } catch (err) { console.warn("finding generator failed", err); }
+  current = v;
+  const finding = document.getElementById("finding");
+  finding.hidden = !v;
+  if (v) renderFinding(v.facts, v.text);
+  renderTiles(data, v?.facts ?? null);
+  if (data.kind === "adhoc") { if (v) renderVsBaseline(v.facts, key); }
+  else renderPaired(data, key);
+  renderDose(data, more);
+  renderHistograms(data, more);
   renderSeeds(data);
   renderProvenance(data, entry);
-  document.getElementById("status").hidden = true;
-  document.getElementById("content").hidden = false;
+  st.hidden = true;
+  content.hidden = false;
 }
+
+const readParam = () => { try { return new URLSearchParams(location.search).get("dataset"); } catch { return null; } };
+const syncParam = (file) => { try { const u = new URL(location.href); u.searchParams.set("dataset", file); history.replaceState(null, "", u); } catch {} };
 
 async function init() {
   let manifest;
@@ -510,8 +1086,10 @@ async function init() {
   }
   const sel = document.getElementById("dataset");
   const kindSel = document.getElementById("kindFilter");
-  const kindOf = (d) => d.kind ?? "study"; // pre-kind manifest entries are studies
-  const labelOf = (d) => d.label ?? "Full study";
+  // ?dataset=<file> selects a manifest entry on load; unknown or absent means newest, never an error.
+  const wantFile = readParam();
+  const wanted = wantFile ? manifest.datasets.find((d) => d.file === wantFile) ?? null : null;
+  if (wanted && kindSel.value !== "all" && kindOf(wanted) !== kindSel.value) kindSel.value = "all";
   function repopulate() {
     const list = manifest.datasets.filter((d) => kindSel.value === "all" || kindOf(d) === kindSel.value);
     sel.innerHTML = "";
@@ -519,13 +1097,13 @@ async function init() {
       const o = document.createElement("option");
       o.value = manifest.datasets.indexOf(d);
       o.textContent = `${kindOf(d) === "adhoc" ? "AD-HOC" : "STUDY"}` +
-        `${(d.mode ?? "orbit") === "tactical" ? " · TACTICAL" : ""} · ${labelOf(d)} · ` +
+        `${modeOf(d) === "tactical" ? " · TACTICAL" : ""} · ${labelOf(d)} · ` +
         `${d.generated.slice(0, 10)} · ${d.total_runs.toLocaleString()} runs`;
       sel.appendChild(o);
     }
     return list;
   }
-  async function applyFilter() {
+  async function applyFilter(preferFile) {
     const list = repopulate();
     if (list.length === 0) {
       document.getElementById("content").hidden = true;
@@ -534,11 +1112,25 @@ async function init() {
       st.textContent = "No datasets match this filter.";
       return;
     }
-    await loadDataset(list[0]);
+    const pick = (preferFile && list.find((d) => d.file === preferFile)) || list[0];
+    sel.value = String(manifest.datasets.indexOf(pick));
+    await loadDataset(pick, manifest);
   }
-  kindSel.addEventListener("change", applyFilter);
-  sel.addEventListener("change", () => loadDataset(manifest.datasets[Number(sel.value)]));
-  await applyFilter();
+  // The URL follows the selector only on user changes, so the bare URL keeps meaning "newest".
+  kindSel.addEventListener("change", async () => { await applyFilter(); if (current) syncParam(current.facts.file); });
+  sel.addEventListener("change", () => { const e = manifest.datasets[Number(sel.value)]; syncParam(e.file); loadDataset(e, manifest); });
+  const btn = document.getElementById("copyBtn");
+  btn.addEventListener("click", async () => {
+    if (!current) return;
+    let ok = false;
+    try {
+      if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(findingsMarkdown(current.facts, current.text)); ok = true; }
+    } catch {}
+    btn.textContent = ok ? "COPIED" : "COPY FAILED";
+    btn.dataset.state = ok ? "ok" : "fail";
+    setTimeout(() => { btn.textContent = "COPY FINDINGS"; delete btn.dataset.state; }, 1600);
+  });
+  await applyFilter(wanted?.file);
 }
 init();
 </script>
