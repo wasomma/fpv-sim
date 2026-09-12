@@ -34,6 +34,34 @@ float-for-float), so a same-seed behavior change in *either* mode is a
 breaking change.
 
 ### Added
+- **The dashboard leads with the finding.** `dashboard.html` now opens on
+  a FINDING card: a plain-English verdict generated deterministically from
+  the selected dataset (nothing stored; the same file always yields the
+  same text) with the summary tiles under it, then one key-evidence card —
+  the paired comparisons for a study, or for an ad-hoc sweep a new VS STOCK
+  BASELINE dumbbell measured against the canonical study of the same mode in
+  the manifest — and an ALL EVIDENCE fold holding the dose-response,
+  timeline, notable-engagement and provenance cards. Ad-hoc tiles carry a
+  Δ-vs-stock line. Every Δ is a difference of displayed rates and is read
+  against a 95% Newcombe hybrid-score interval on the difference of two
+  independent proportions: "clear" when the interval excludes zero, "slight"
+  when it includes zero but |Δ| ≥ 2 points, otherwise "no measurable
+  difference". **COPY FINDINGS** puts the verdict, the tiles with their CIs,
+  the deltas and the provenance (dataset file, commits, regeneration
+  command) on the clipboard as Markdown.
+- **`dashboard.html?dataset=<file>`** opens on that manifest entry (an
+  unknown or absent file falls back to the newest, never an error), and the
+  address bar follows the DATASET selector so a reload lands on the same
+  dataset.
+- **`scripts/check-dashboard-stats.mjs`** lifts the dashboard's pure
+  statistics and finding generator out of the page (the block between
+  `@stats-begin` and `@stats-end`, which never touches the DOM) and checks
+  it in node: an independent Wilson/Newcombe implementation, published
+  check values, every `ci95` in the committed datasets, and byte-identical
+  golden findings for the three of them. `node
+  scripts/check-dashboard-stats.mjs` locally; `.github/workflows/dashboard.yml`
+  runs it on every push and pull request that touches the page, the script
+  or a dataset.
 - **Tactical Monte Carlo study** (`scripts/monte-carlo-study.mjs --mode
   tactical`; committed dataset
   [results/monte-carlo-tactical.json](results/monte-carlo-tactical.json),
@@ -67,6 +95,15 @@ breaking change.
   which now carries the tactical entries.
 
 ### Changed
+- **Dashboard layout**: the tiles moved into the finding card; dose
+  response, histograms, notable engagements and provenance are collapsed
+  under ALL EVIDENCE (`<details id="evidence">`) by default. The DOM hooks
+  downstream consumers rely on are unchanged — `#status`, `#content`,
+  `#tiles`, `#charts .card`, `#seedsCard`, `#prov`, `#dataset`,
+  `#kindFilter`, `#tooltip` — and the paired card's dumbbell renderer is
+  now shared with the vs-stock card. The provenance footer escapes the
+  dataset label (free text from a sweep's `--label`) instead of injecting
+  it as HTML.
 - **Monte Carlo datasets regenerated on the bounded-search engine**
   (fpv-sim-mcp `0d7d1fa`; both studies rerun in full, manifest refreshed,
   and the one committed ad-hoc sweep — DF bearing error doubled —

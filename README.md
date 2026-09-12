@@ -228,7 +228,10 @@ generated from the same machine-readable table that validates inputs to the
 - `index.html` is the entire simulation application. It is named `index.html`
   so GitHub Pages serves it at the repository root URL. `dashboard.html` is
   its companion results viewer — equally single-file and dependency-free,
-  reading the committed datasets in `results/`.
+  reading the committed datasets in `results/`. It opens on an
+  auto-generated finding for the selected dataset, deep-links as
+  `dashboard.html?dataset=<file>`, and COPY FINDINGS exports the finding
+  as Markdown.
 - `viewer3d.html` is an experimental WebGPU 3D rendering of the same
   engagement: terrain in relief, drones at true altitude, terrain-draped
   LOBs and error ellipses, and a GPU-computed detectability overlay that

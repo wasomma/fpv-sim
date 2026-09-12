@@ -1,0 +1,33 @@
+# Dashboard statistics and golden findings.
+#
+# dashboard.html keeps its statistics (Wilson / Newcombe intervals, the
+# displayed-rate delta rule) and the finding generator in a DOM-free block
+# between "@stats-begin" and "@stats-end". scripts/check-dashboard-stats.mjs
+# lifts that block out and runs it in node: an independent implementation
+# over a grid, published check values, every ci95 in the committed
+# datasets, and byte-identical golden findings for the three datasets in
+# results/. A change to the wording, the statistics or a dataset must
+# update the goldens in that script in the same change.
+
+name: dashboard
+
+on:
+  pull_request:
+    paths: [dashboard.html, scripts/check-dashboard-stats.mjs, "results/**"]
+  push:
+    branches: [main]
+    paths: [dashboard.html, scripts/check-dashboard-stats.mjs, "results/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: node scripts/check-dashboard-stats.mjs
